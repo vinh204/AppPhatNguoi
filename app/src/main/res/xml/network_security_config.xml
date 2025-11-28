@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Cho phép cả HTTPS và HTTP (cleartext) tới phatnguoixe.com -->
+    <!-- Một số server có thể redirect từ HTTPS sang HTTP hoặc yêu cầu HTTP -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">phatnguoixe.com</domain>
+    </domain-config>
+</network-security-config>
+

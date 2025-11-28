@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1010793288606",
+    "project_id": "phat-nguoi-bc6cf",
+    "storage_bucket": "phat-nguoi-bc6cf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1010793288606:android:a7eadf8375f3ca3989fc8f",
+        "android_client_info": {
+          "package_name": "com.tuhoc.phatnguoi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbWWbxBgk5gDOgH7NCnHKmLMvwhXVgrqc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
