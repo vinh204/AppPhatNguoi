@@ -50,7 +50,7 @@ class NotificationHelper(private val context: Context) {
     /**
      * Hiển thị thông báo tra cứu dạng hệ thống Android
      * @param bienSo Biển số
-     * @param loaiXe Loại xe: 1 = Ô tô, 2 = Xe máy, 3 = Xe máy điện
+     * @param loaiXe Loại xe: 1 = Ô tô, 2 = Xe máy, 3 = Xe đạp điện
      * @param coViPham Có vi phạm hay không
      * @param soLoi Số lỗi vi phạm (nếu có)
      * @param daNop Số vi phạm đã nộp

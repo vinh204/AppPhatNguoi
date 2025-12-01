@@ -74,7 +74,7 @@ class AutoCheckService(private val context: Context) {
                         loaiXe = when (autoCheck.loaiXe) {
                             1 -> "Ô tô"
                             2 -> "Xe máy"
-                            3 -> "Xe máy điện"
+                            3 -> "Xe đạp điện"
                             else -> "Ô tô"
                         },
                         thoiGian = System.currentTimeMillis(),

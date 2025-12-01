@@ -97,20 +97,55 @@ fun ForgotPasswordScreen(
     var isOtpSent by remember { mutableStateOf(false) }
     var countdown by remember { mutableStateOf(0) }
     
+    // State cho OTP rate limiting
+    var otpRateLimitMessage by remember { mutableStateOf<String?>(null) }
+    var otpRateLimitCountdown by remember { mutableStateOf(0) }
+    
     // Tự động gửi OTP khi mở màn hình (luôn ở bước 2)
     LaunchedEffect(initialPhoneNumber) {
         if (initialPhoneNumber.isNotEmpty()) {
             // Gửi OTP trong background, không block UI
             scope.launch {
                 isLoading = true
-                val success = otpService.sendOtp(initialPhoneNumber)
+                val result = otpService.sendOtp(initialPhoneNumber)
                 isLoading = false
-                if (success) {
-                    isOtpSent = true
-                    countdown = 60
-                } else {
-                    errorMessage = "Không thể gửi OTP. Vui lòng thử lại."
+                when (result) {
+                    is com.tuhoc.phatnguoi.data.remote.OTPResult.Success -> {
+                        isOtpSent = true
+                        countdown = 60
+                        otpRateLimitMessage = null
+                        otpRateLimitCountdown = 0
+                    }
+                    is com.tuhoc.phatnguoi.data.remote.OTPResult.RateLimited -> {
+                        otpRateLimitMessage = result.rateLimitResult.message
+                        otpRateLimitCountdown = result.rateLimitResult.remainingSeconds
+                        errorMessage = null
+                    }
+                    is com.tuhoc.phatnguoi.data.remote.OTPResult.Error -> {
+                        errorMessage = result.message
+                        otpRateLimitMessage = null
+                    }
                 }
+            }
+        }
+    }
+    
+    // Countdown timer cho rate limit OTP
+    LaunchedEffect(otpRateLimitCountdown) {
+        if (otpRateLimitCountdown > 0) {
+            delay(1000)
+            otpRateLimitCountdown--
+            
+            if (otpRateLimitCountdown > 0) {
+                val otpRateLimitInfo = otpService.getRateLimitInfo(phoneNumber)
+                if (!otpRateLimitInfo.canSend) {
+                    otpRateLimitMessage = otpRateLimitInfo.message
+                } else {
+                    otpRateLimitMessage = null
+                    otpRateLimitCountdown = 0
+                }
+            } else {
+                otpRateLimitMessage = null
             }
         }
     }
@@ -318,15 +353,25 @@ fun ForgotPasswordScreen(
                                     onClick = {
                                         isLoading = true
                                         scope.launch {
-                                            val success = otpService.sendOtp(phoneNumber)
+                                            val result = otpService.sendOtp(phoneNumber)
                                             isLoading = false
-                                            if (success) {
-                                                isOtpSent = true
-                                                countdown = 60
-                                                clearError()
-                                            } else {
-                                                errorMessage =
-                                                    "Không thể gửi OTP. Vui lòng thử lại."
+                                            when (result) {
+                                                is com.tuhoc.phatnguoi.data.remote.OTPResult.Success -> {
+                                                    isOtpSent = true
+                                                    countdown = 60
+                                                    clearError()
+                                                    otpRateLimitMessage = null
+                                                    otpRateLimitCountdown = 0
+                                                }
+                                                is com.tuhoc.phatnguoi.data.remote.OTPResult.RateLimited -> {
+                                                    otpRateLimitMessage = result.rateLimitResult.message
+                                                    otpRateLimitCountdown = result.rateLimitResult.remainingSeconds
+                                                    errorMessage = null
+                                                }
+                                                is com.tuhoc.phatnguoi.data.remote.OTPResult.Error -> {
+                                                    errorMessage = result.message
+                                                    otpRateLimitMessage = null
+                                                }
                                             }
                                         }
                                     },
@@ -338,6 +383,18 @@ fun ForgotPasswordScreen(
                                         color = RedPrimary
                                     )
                                 }
+                            }
+                            
+                            // Hiển thị OTP rate limit message
+                            otpRateLimitMessage?.let { message ->
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = message,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.error,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
                     }

@@ -93,7 +93,7 @@ fun HistoryScreen(
                                 val loaiXe = when (item.loaiXe) {
                                     "Ô tô" -> 1
                                     "Xe máy" -> 2
-                                    "Xe máy điện" -> 3
+                                    "Xe đạp điện" -> 3
                                     else -> 1
                                 }
                                 onItemClick(item.bienSo, loaiXe)
@@ -155,7 +155,7 @@ fun HistoryItemCard(
     val vehicleIcon = when (item.loaiXe) {
         "Ô tô" -> Icons.Filled.DirectionsCar
         "Xe máy" -> Icons.Filled.TwoWheeler
-        "Xe máy điện" -> Icons.Filled.ElectricBike
+        "Xe đạp điện" -> Icons.Filled.ElectricBike
         else -> Icons.Filled.DirectionsCar
     }
     
@@ -163,7 +163,7 @@ fun HistoryItemCard(
     val loaiXe = when (item.loaiXe) {
         "Ô tô" -> 1
         "Xe máy" -> 2
-        "Xe máy điện" -> 3
+        "Xe đạp điện" -> 3
         else -> 1
     }
     

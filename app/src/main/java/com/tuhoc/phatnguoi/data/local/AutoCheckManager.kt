@@ -20,7 +20,7 @@ class AutoCheckManager(context: Context) {
      * Thêm hoặc cập nhật biển số vào danh sách tự động tra cứu
      * Nếu biển số đã có, cập nhật bản ghi cũ thay vì tạo mới
      * @param bienSo Biển số cần tra cứu
-     * @param loaiXe Loại xe: 1 = Ô tô, 2 = Xe máy, 3 = Xe máy điện
+     * @param loaiXe Loại xe: 1 = Ô tô, 2 = Xe máy, 3 = Xe đạp điện
      * @param enabled Trạng thái bật/tắt
      */
     suspend fun addOrUpdateAutoCheck(bienSo: String, loaiXe: Int, enabled: Boolean) {

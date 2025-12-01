@@ -22,16 +22,21 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
-        // Đọc API key từ local.properties
+        // Đọc API keys từ local.properties
         val localPropertiesFile = rootProject.file("local.properties")
-        val geminiApiKey = if (localPropertiesFile.exists()) {
-            val properties = Properties()
-            properties.load(localPropertiesFile.inputStream())
-            properties.getProperty("GEMINI_API_KEY") ?: ""
+        val properties = if (localPropertiesFile.exists()) {
+            val props = Properties()
+            props.load(localPropertiesFile.inputStream())
+            props
         } else {
-            ""
+            Properties()
         }
+        
+        val geminiApiKey = properties.getProperty("GEMINI_API_KEY") ?: ""
+        val autocaptchaApiKey = properties.getProperty("AUTOCAPTCHA_API_KEY") ?: ""
+        
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "AUTOCAPTCHA_API_KEY", "\"$autocaptchaApiKey\"")
     }
 
     buildTypes {
@@ -92,6 +97,12 @@ dependencies {
     
     // Google Gemini AI
     implementation("com.google.ai.client.generativeai:generativeai:0.8.0")
+    
+    // BCrypt for password hashing
+    implementation("org.mindrot:jbcrypt:0.4")
+    
+    // EncryptedSharedPreferences for secure local storage
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
     
     // Firebase BOM - quản lý version của tất cả Firebase libraries
     implementation(platform(libs.firebase.bom))

@@ -94,3 +94,5 @@ autoCheckService.addAutoCheck("0912345678", "30A-12345", 2, true)
 - Chỉ khi bạn gọi các hàm Firebase thì mới cần database đã được tạo
 - Nên tạo database trước khi sử dụng các tính năng Firebase
 
+
+

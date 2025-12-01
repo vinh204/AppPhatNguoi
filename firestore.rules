@@ -1,0 +1,133 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function để kiểm tra user đang đăng nhập
+    // Lưu ý: Ứng dụng hiện tại không sử dụng Firebase Authentication
+    // Nên rules này sẽ có giới hạn. Nên migrate sang Firebase Authentication để bảo mật tốt hơn
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function để kiểm tra user có phải owner không
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Helper function để validate phoneNumber format
+    function isValidPhoneNumber(phone) {
+      return phone is string && 
+             phone.matches('^0[0-9]{9,10}$');
+    }
+    
+    // Helper function để validate bienSo format (biển số Việt Nam)
+    function isValidBienSo(bienSo) {
+      return bienSo is string && 
+             bienSo.size() > 0 && 
+             bienSo.size() <= 20;
+    }
+    
+    // ============================================================
+    // USERS COLLECTION
+    // ============================================================
+    // Lưu ý: Vì ứng dụng không dùng Firebase Auth, 
+    // rules này chỉ bảo vệ ở mức cơ bản
+    // Nên migrate sang Firebase Authentication để bảo mật tốt hơn
+    match /users/{userId} {
+      // Cho phép đọc nếu authenticated (nếu dùng Firebase Auth)
+      // Hoặc tạm thời cho phép đọc để ứng dụng hoạt động
+      // TODO: Migrate sang Firebase Authentication
+      allow read: if true; // Tạm thời cho phép đọc
+      
+      // Chỉ cho phép tạo user mới với phoneNumber hợp lệ
+      allow create: if isValidPhoneNumber(request.resource.data.phoneNumber) &&
+                       request.resource.data.phoneNumber == userId &&
+                       request.resource.data.keys().hasAll(['phoneNumber', 'password', 'isLoggedIn', 'createdAt']) &&
+                       request.resource.data.password is string &&
+                       request.resource.data.isLoggedIn is bool &&
+                       request.resource.data.createdAt is timestamp;
+      
+      // Chỉ cho phép update user của chính mình
+      // Lưu ý: Vì không dùng Firebase Auth, rule này không thể enforce chặt chẽ
+      // TODO: Migrate sang Firebase Authentication
+      allow update: if request.resource.data.phoneNumber == userId &&
+                        (!('password' in request.resource.data) || 
+                         request.resource.data.password is string) &&
+                        (!('isLoggedIn' in request.resource.data) || 
+                         request.resource.data.isLoggedIn is bool);
+      
+      // Không cho phép xóa user
+      allow delete: if false;
+    }
+    
+    // ============================================================
+    // HISTORY COLLECTION
+    // ============================================================
+    match /history/{historyId} {
+      // Cho phép đọc lịch sử của chính mình
+      // Lưu ý: Vì không dùng Firebase Auth, rule này không thể enforce chặt chẽ
+      // TODO: Migrate sang Firebase Authentication
+      allow read: if true; // Tạm thời cho phép đọc
+      
+      // Chỉ cho phép tạo lịch sử với dữ liệu hợp lệ
+      allow create: if request.resource.data.keys().hasAll(['userId', 'bienSo', 'loaiXe', 'thoiGian', 'coViPham']) &&
+                       isValidPhoneNumber(request.resource.data.userId) &&
+                       isValidBienSo(request.resource.data.bienSo) &&
+                       request.resource.data.loaiXe is string &&
+                       request.resource.data.thoiGian is timestamp &&
+                       request.resource.data.coViPham is bool &&
+                       (!('soLoi' in request.resource.data) || 
+                        request.resource.data.soLoi is int);
+      
+      // Chỉ cho phép update lịch sử của chính mình
+      // Lưu ý: Vì không dùng Firebase Auth, rule này không thể enforce chặt chẽ
+      allow update: if resource.data.userId == request.resource.data.userId &&
+                       isValidBienSo(request.resource.data.bienSo) &&
+                       request.resource.data.loaiXe is string &&
+                       request.resource.data.coViPham is bool;
+      
+      // Chỉ cho phép xóa lịch sử của chính mình
+      // Lưu ý: Vì không dùng Firebase Auth, rule này không thể enforce chặt chẽ
+      allow delete: if true; // Tạm thời cho phép xóa
+    }
+    
+    // ============================================================
+    // AUTO_CHECK COLLECTION
+    // ============================================================
+    match /auto_check/{autoCheckId} {
+      // Cho phép đọc auto check của chính mình
+      // Lưu ý: Vì không dùng Firebase Auth, rule này không thể enforce chặt chẽ
+      allow read: if true; // Tạm thời cho phép đọc
+      
+      // Chỉ cho phép tạo auto check với dữ liệu hợp lệ
+      allow create: if request.resource.data.keys().hasAll(['userId', 'bienSo', 'loaiXe', 'enabled']) &&
+                       isValidPhoneNumber(request.resource.data.userId) &&
+                       isValidBienSo(request.resource.data.bienSo) &&
+                       request.resource.data.loaiXe is int &&
+                       request.resource.data.loaiXe >= 1 &&
+                       request.resource.data.loaiXe <= 3 &&
+                       request.resource.data.enabled is bool;
+      
+      // Chỉ cho phép update auto check của chính mình
+      // Lưu ý: Vì không dùng Firebase Auth, rule này không thể enforce chặt chẽ
+      allow update: if resource.data.userId == request.resource.data.userId &&
+                       isValidBienSo(request.resource.data.bienSo) &&
+                       request.resource.data.loaiXe is int &&
+                       request.resource.data.loaiXe >= 1 &&
+                       request.resource.data.loaiXe <= 3 &&
+                       request.resource.data.enabled is bool;
+      
+      // Chỉ cho phép xóa auto check của chính mình
+      // Lưu ý: Vì không dùng Firebase Auth, rule này không thể enforce chặt chẽ
+      allow delete: if true; // Tạm thời cho phép xóa
+    }
+    
+    // ============================================================
+    // DENY ALL OTHER COLLECTIONS
+    // ============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

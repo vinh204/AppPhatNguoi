@@ -1237,7 +1237,7 @@ fun AppHeader(current: BottomItem) {
 enum class VehicleType(val apiValue: Int, val label: String) {
     OTO(1, "Ô tô"),
     XE_MAY(2, "Xe máy"),
-    XE_MAY_DIEN(3, "Xe máy điện")
+    XE_MAY_DIEN(3, "Xe đạp điện")
 }
 
 @Composable
@@ -1381,7 +1381,7 @@ fun TraCuuScreen(
             val loaiXeLabel = when (vehicleType) {
                 VehicleType.OTO -> "Ô tô"
                 VehicleType.XE_MAY -> "Xe máy"
-                VehicleType.XE_MAY_DIEN -> "Xe máy điện"
+                VehicleType.XE_MAY_DIEN -> "Xe đạp điện"
             }
 
             // Tạo key duy nhất cho kết quả này (biển số + loại xe + số lỗi)
@@ -1407,7 +1407,7 @@ fun TraCuuScreen(
                 val loaiXeLabel = when (vehicleType) {
                     VehicleType.OTO -> "Ô tô"
                     VehicleType.XE_MAY -> "Xe máy"
-                    VehicleType.XE_MAY_DIEN -> "Xe máy điện"
+                    VehicleType.XE_MAY_DIEN -> "Xe đạp điện"
                 }
 
                 // Tạo key duy nhất cho kết quả này

@@ -54,7 +54,7 @@ fun FAQScreen() {
                     Bạn có thể tra cứu phạt nguội theo các bước sau:
                     
                     1. Nhập biển số xe (không có ký tự đặc biệt, viết liền)
-                    2. Chọn loại phương tiện (Ô tô, Xe máy, hoặc Xe máy điện)
+                    2. Chọn loại phương tiện (Ô tô, Xe máy, hoặc Xe đạp điện)
                     3. Nhấn nút "Tra ngay"
                     4. Chờ kết quả tra cứu từ hệ thống
                     

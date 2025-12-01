@@ -6,7 +6,7 @@ package com.tuhoc.phatnguoi.data.local
  */
 data class AutoCheck(
     val bienSo: String,
-    val loaiXe: Int, // 1 = Ô tô, 2 = Xe máy, 3 = Xe máy điện
+    val loaiXe: Int, // 1 = Ô tô, 2 = Xe máy, 3 = Xe đạp điện
     val enabled: Boolean = true,
     val documentId: String? = null // Document ID trong Firestore để update/delete
 ) {

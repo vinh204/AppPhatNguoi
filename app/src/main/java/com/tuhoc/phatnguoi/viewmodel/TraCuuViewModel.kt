@@ -50,7 +50,7 @@ class TraCuuViewModel : ViewModel() {
      * ----------------------------------------------------------- */
     fun traCuuBienSo(
         bienSoRaw: String,
-        loaiXe: Int   // 1 = ô tô, 2 = xe máy, 3 = xe máy điện
+        loaiXe: Int   // 1 = ô tô, 2 = xe máy, 3 = Xe đạp điện
     ) {
         // Chuẩn hoá giống UI (upper + bỏ space)
         val bienSo = bienSoRaw.uppercase().replace(" ", "")

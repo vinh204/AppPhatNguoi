@@ -32,7 +32,7 @@ import kotlinx.coroutines.tasks.await
  *   {autoCheckId}/
  *     userId: String
  *     bienSo: String
- *     loaiXe: Int (1 = Ô tô, 2 = Xe máy, 3 = Xe máy điện)
+ *     loaiXe: Int (1 = Ô tô, 2 = Xe máy, 3 = Xe đạp điện)
  *     enabled: Boolean
  *     createdAt: Timestamp
  *     updatedAt: Timestamp

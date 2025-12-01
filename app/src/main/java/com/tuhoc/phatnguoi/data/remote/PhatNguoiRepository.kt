@@ -3,6 +3,7 @@ package com.tuhoc.phatnguoi.data.remote
 import android.util.Base64
 import android.util.Log
 import com.google.gson.Gson
+import com.tuhoc.phatnguoi.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
@@ -21,11 +22,12 @@ import javax.net.ssl.X509TrustManager
 
 class PhatNguoiRepository {
 
-    private val client: OkHttpClient = createUnsafeOkHttpClient()
+    private val client: OkHttpClient = createOkHttpClient()
     private val gson = Gson()
 
-    // API key AutoCaptcha cố định
-    private val AUTOCAPTCHA_API_KEY = "d17e7e63f5f8a4ea9f1a35a470d5cfea"
+    // API key AutoCaptcha được đọc từ BuildConfig (từ local.properties)
+    // Không còn hardcode trong source code
+    private val AUTOCAPTCHA_API_KEY = BuildConfig.AUTOCAPTCHA_API_KEY
     
     private val AUTOCAPTCHA_API_URL = "https://autocaptcha.pro/apiv3/process"
     private val CSGT_CAPTCHA_URL = "https://www.csgt.vn/lib/captcha/captcha.class.php"
@@ -38,7 +40,7 @@ class PhatNguoiRepository {
     /**
      * Tra cứu vi phạm giao thông
      * @param plate Biển số xe (đã được chuẩn hóa và validate ở ViewModel)
-     * @param vehicleType Loại xe (1 = ô tô, 2 = xe máy, 3 = xe đạp điện)
+     * @param vehicleType Loại xe (1 = ô tô, 2 = xe máy, 3 = Xe đạp điện)
      */
     suspend fun checkPhatNguoi(
         plate: String,
@@ -499,10 +501,32 @@ class PhatNguoiRepository {
     }
 
     /**
-     * Tạo OkHttpClient với SSL không verify (vì CSGT có thể có vấn đề SSL)
+     * Tạo OkHttpClient với SSL verification phù hợp
+     * - DEBUG mode: Disable SSL verification (để test với server có vấn đề SSL)
+     * - RELEASE mode: Bật SSL verification đầy đủ (an toàn cho production)
      */
-    private fun createUnsafeOkHttpClient(): OkHttpClient {
-        try {
+    private fun createOkHttpClient(): OkHttpClient {
+        // Chỉ disable SSL verification trong debug mode
+        if (BuildConfig.DEBUG) {
+            Log.w("PhatNguoi", "⚠️ DEBUG MODE: SSL verification đã bị disable - CHỈ DÙNG CHO TEST")
+            return createUnsafeOkHttpClientForDebug()
+        }
+        
+        // Production: Sử dụng SSL verification bình thường
+        Log.d("PhatNguoi", "✅ RELEASE MODE: SSL verification đã được bật")
+        return OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+    
+    /**
+     * Tạo OkHttpClient không verify SSL - CHỈ DÙNG CHO DEBUG
+     * ⚠️ CẢNH BÁO: Không an toàn, chỉ dùng để test
+     */
+    private fun createUnsafeOkHttpClientForDebug(): OkHttpClient {
+        return try {
             // Tạo trust manager chấp nhận tất cả certificates
             val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
                 override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>?, authType: String?) {}
@@ -517,7 +541,7 @@ class PhatNguoiRepository {
             // Tạo ssl socket factory
             val sslSocketFactory: SSLSocketFactory = sslContext.socketFactory
 
-            return OkHttpClient.Builder()
+            OkHttpClient.Builder()
                 .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
                 .hostnameVerifier { _, _ -> true } // Bỏ qua hostname verification
                 .connectTimeout(30, TimeUnit.SECONDS)
@@ -525,8 +549,9 @@ class PhatNguoiRepository {
                 .writeTimeout(30, TimeUnit.SECONDS)
                 .build()
         } catch (e: Exception) {
-            Log.e("PhatNguoi", "Lỗi tạo unsafe OkHttpClient", e)
-            return OkHttpClient.Builder()
+            Log.e("PhatNguoi", "Lỗi tạo unsafe OkHttpClient cho debug", e)
+            // Fallback: vẫn disable SSL verification
+            OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)

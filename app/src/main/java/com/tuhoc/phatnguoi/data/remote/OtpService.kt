@@ -3,19 +3,26 @@ package com.tuhoc.phatnguoi.data.remote
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.tuhoc.phatnguoi.utils.EncryptedPreferencesHelper
+import com.tuhoc.phatnguoi.utils.OTPRateLimiter
+import com.tuhoc.phatnguoi.utils.OTPRateLimitResult
 import kotlinx.coroutines.delay
 import java.util.Random
 
 /**
  * Service để xử lý OTP verification
  * Tạm thời dùng mock implementation, có thể thay thế bằng API thật sau
+ * 
+ * Sử dụng EncryptedSharedPreferences để mã hóa OTP codes
  */
 class OtpService(private val context: Context) {
     
-    private val prefs: SharedPreferences = context.getSharedPreferences(
-        "otp_cache",
-        Context.MODE_PRIVATE
+    private val prefs: SharedPreferences = EncryptedPreferencesHelper.create(
+        context,
+        "otp_cache"
     )
+    
+    private val rateLimiter = OTPRateLimiter(context)
     
     companion object {
         private const val KEY_OTP = "otp_"
@@ -26,10 +33,18 @@ class OtpService(private val context: Context) {
     
     /**
      * Gửi OTP đến số điện thoại
-     * @return true nếu gửi thành công, false nếu lỗi
+     * Có tích hợp rate limiting để chống spam
+     * @return Result với thông tin thành công hoặc rate limit
      */
-    suspend fun sendOtp(phoneNumber: String): Boolean {
+    suspend fun sendOtp(phoneNumber: String): OTPResult {
         return try {
+            // Kiểm tra rate limit trước
+            val rateLimitResult = rateLimiter.canSendOTP(phoneNumber)
+            if (!rateLimitResult.canSend) {
+                Log.w("OtpService", "Rate limit: ${rateLimitResult.message}")
+                return OTPResult.RateLimited(rateLimitResult)
+            }
+            
             // TODO: Thay thế bằng API thật khi có
             // val api = NetworkModule.phatNguoiApi
             // val response = api.sendOtp(phoneNumber)
@@ -45,17 +60,27 @@ class OtpService(private val context: Context) {
                 .putLong(KEY_OTP_EXPIRY + phoneNumber, expiryTime)
                 .apply()
             
+            // Ghi nhận đã gửi OTP (để tracking rate limit)
+            rateLimiter.recordOTPSent(phoneNumber)
+            
             // Mock delay để giống gọi API thật
             delay(1000)
             
             // Log để test (trong thực tế sẽ gửi qua SMS)
             Log.d("OtpService", "OTP gửi đến $phoneNumber: $otp (hết hạn sau ${OTP_VALIDITY_MINUTES} phút)")
             
-            true
+            OTPResult.Success
         } catch (e: Exception) {
             Log.e("OtpService", "Lỗi khi gửi OTP", e)
-            false
+            OTPResult.Error(e.message ?: "Có lỗi xảy ra khi gửi OTP")
         }
+    }
+    
+    /**
+     * Lấy thông tin rate limit hiện tại (để hiển thị trên UI)
+     */
+    fun getRateLimitInfo(phoneNumber: String): OTPRateLimitResult {
+        return rateLimiter.getRateLimitInfo(phoneNumber)
     }
     
     /**
@@ -118,5 +143,14 @@ class OtpService(private val context: Context) {
             .map { random.nextInt(10) }
             .joinToString("")
     }
+}
+
+/**
+ * Kết quả gửi OTP
+ */
+sealed class OTPResult {
+    object Success : OTPResult()
+    data class RateLimited(val rateLimitResult: OTPRateLimitResult) : OTPResult()
+    data class Error(val message: String) : OTPResult()
 }
 

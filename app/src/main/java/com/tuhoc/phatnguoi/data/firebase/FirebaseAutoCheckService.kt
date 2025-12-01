@@ -11,7 +11,7 @@ import android.util.Log
  * Loại xe:
  * 1 = Ô tô
  * 2 = Xe máy
- * 3 = Xe máy điện
+ * 3 = Xe đạp điện
  */
 class FirebaseAutoCheckService {
     private val repository = FirebaseRepository()
