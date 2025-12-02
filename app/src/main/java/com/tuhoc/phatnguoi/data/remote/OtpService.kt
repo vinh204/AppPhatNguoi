@@ -3,11 +3,13 @@ package com.tuhoc.phatnguoi.data.remote
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.tuhoc.phatnguoi.utils.AdvancedRateLimiter
 import com.tuhoc.phatnguoi.utils.EncryptedPreferencesHelper
 import com.tuhoc.phatnguoi.utils.OTPRateLimiter
 import com.tuhoc.phatnguoi.utils.OTPRateLimitResult
+import com.tuhoc.phatnguoi.utils.RateLimitResult
 import kotlinx.coroutines.delay
-import java.util.Random
+import java.security.SecureRandom
 
 /**
  * Service để xử lý OTP verification
@@ -23,6 +25,7 @@ class OtpService(private val context: Context) {
     )
     
     private val rateLimiter = OTPRateLimiter(context)
+    private val verifyRateLimiter = AdvancedRateLimiter(context)
     
     companion object {
         private const val KEY_OTP = "otp_"
@@ -84,16 +87,43 @@ class OtpService(private val context: Context) {
     }
     
     /**
+     * Lấy thông tin rate limit cho verify OTP (để hiển thị trên UI)
+     */
+    fun getVerifyRateLimitInfo(phoneNumber: String): RateLimitResult {
+        val key = "otp_verify_$phoneNumber"
+        return verifyRateLimiter.getLockoutInfo(key)
+    }
+    
+    /**
+     * Lấy số lần thử còn lại trước khi bị lockout cho verify OTP
+     */
+    fun getRemainingVerifyAttempts(phoneNumber: String): Int {
+        val key = "otp_verify_$phoneNumber"
+        return verifyRateLimiter.getRemainingAttempts(key)
+    }
+    
+    /**
      * Xác thực OTP
+     * Có tích hợp rate limiting để chống brute force attack
      * @return true nếu OTP hợp lệ, false nếu không hợp lệ hoặc hết hạn
      */
     fun verifyOtp(phoneNumber: String, otp: String): Boolean {
+        val key = "otp_verify_$phoneNumber"
+        
+        // Kiểm tra rate limit trước
+        val rateLimitResult = verifyRateLimiter.canProceed(key)
+        if (!rateLimitResult.canProceed) {
+            Log.w("OtpService", "Rate limit OTP verification: ${rateLimitResult.message}")
+            return false
+        }
+        
         val storedOtp = prefs.getString(KEY_OTP + phoneNumber, null)
         val expiryTime = prefs.getLong(KEY_OTP_EXPIRY + phoneNumber, 0)
         
         // Kiểm tra OTP có tồn tại không
         if (storedOtp == null) {
             Log.d("OtpService", "Không tìm thấy OTP cho số điện thoại: $phoneNumber")
+            verifyRateLimiter.recordFailedAttempt(key)
             return false
         }
         
@@ -105,12 +135,15 @@ class OtpService(private val context: Context) {
                 .remove(KEY_OTP + phoneNumber)
                 .remove(KEY_OTP_EXPIRY + phoneNumber)
                 .apply()
+            verifyRateLimiter.recordFailedAttempt(key)
             return false
         }
         
         // Kiểm tra OTP có khớp không
         val isValid = storedOtp == otp
         if (isValid) {
+            // Reset rate limiter khi verify thành công
+            verifyRateLimiter.reset(key)
             // Xóa OTP sau khi xác thực thành công
             prefs.edit()
                 .remove(KEY_OTP + phoneNumber)
@@ -118,6 +151,8 @@ class OtpService(private val context: Context) {
                 .apply()
             Log.d("OtpService", "OTP xác thực thành công cho số điện thoại: $phoneNumber")
         } else {
+            // Ghi nhận lần thử thất bại
+            verifyRateLimiter.recordFailedAttempt(key)
             Log.d("OtpService", "OTP không khớp cho số điện thoại: $phoneNumber")
         }
         
@@ -136,11 +171,12 @@ class OtpService(private val context: Context) {
     
     /**
      * Tạo OTP ngẫu nhiên
+     * Sử dụng SecureRandom để đảm bảo tính ngẫu nhiên mật mã học
      */
     private fun generateOtp(): String {
-        val random = Random()
+        val secureRandom = SecureRandom()
         return (1..OTP_LENGTH)
-            .map { random.nextInt(10) }
+            .map { secureRandom.nextInt(10) }
             .joinToString("")
     }
 }

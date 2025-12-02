@@ -1,6 +1,7 @@
 package com.tuhoc.phatnguoi.ui.result
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,6 +15,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Login
+import androidx.compose.foundation.BorderStroke
 import com.tuhoc.phatnguoi.ViolationSummaryCard
 import com.tuhoc.phatnguoi.StatusRow
 import com.tuhoc.phatnguoi.StatusBadge
@@ -24,11 +28,13 @@ import com.tuhoc.phatnguoi.data.remote.DataInfo
 import com.tuhoc.phatnguoi.ui.theme.RedPrimary
 import com.tuhoc.phatnguoi.ui.theme.TextPrimary
 import com.tuhoc.phatnguoi.ui.theme.TextSub
+import androidx.compose.ui.draw.rotate
 
 data class ResultScreenData(
     val info: DataInfo?,
     val pairs: List<Pair<String, String>>,
-    val onShowAIScreen: (com.tuhoc.phatnguoi.AIScreenData) -> Unit
+    val onShowAIScreen: (com.tuhoc.phatnguoi.AIScreenData) -> Unit,
+    val onLogin: (() -> Unit)? = null
 )
 
 @Composable
@@ -99,6 +105,16 @@ fun ResultScreen(
             // Kiểm tra nếu không có vi phạm
             val hasNoViolations = info?.total == 0 || (info == null && rows.isEmpty())
             
+            // ✅ Kiểm tra xem có phải là thông báo rate limit không
+            val isRateLimitMessage = rows.any { 
+                it.first == "Thông báo" && (
+                    it.second.contains("tra cứu 3 lần", ignoreCase = true) ||
+                    it.second.contains("đăng nhập để tra cứu", ignoreCase = true) ||
+                    it.second.contains("vượt quá giới hạn tra cứu", ignoreCase = true) ||
+                    it.second.contains("đăng nhập để tiếp tục", ignoreCase = true)
+                )
+            }
+            
             // Lấy biển số từ rows để hiển thị trong thông báo
             val bienSo = rows.find { 
                 it.first == "Biển kiểm soát" || 
@@ -106,7 +122,58 @@ fun ResultScreen(
                 it.first.contains("Biển", ignoreCase = true)
             }?.second?.trim() ?: "N/A"
             
-            if (hasNoViolations) {
+            // ✅ Hiển thị thông báo rate limit
+            if (isRateLimitMessage) {
+                val rateLimitMessage = rows.find { it.first == "Thông báo" }?.second 
+                    ?: "Đã vượt quá giới hạn tra cứu trong ngày. Vui lòng đăng nhập để tiếp tục tra cứu"
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = rateLimitMessage,
+                            color = RedPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
+                        )
+                        
+                        // ✅ Nút đăng nhập ngay - style giống "Xem chi tiết mức phạt"
+                        if (data.onLogin != null) {
+                            Spacer(Modifier.height(24.dp))
+                            OutlinedButton(
+                                onClick = { data.onLogin?.invoke() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(40.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = TextPrimary
+                                ),
+                                border = BorderStroke(1.dp, Color(0xFFE0E0E0))
+                            ) {
+                                Text(
+                                    text = "Đăng nhập ngay",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            } else if (hasNoViolations) {
                 // Hiển thị thông báo không có vi phạm với biển số
                 Card(
                     modifier = Modifier
@@ -173,8 +240,8 @@ fun ResultScreen(
                 }
             }
 
-            // Chỉ hiển thị card chi tiết nếu có vi phạm
-            if (!hasNoViolations) {
+            // Chỉ hiển thị card chi tiết nếu có vi phạm và không phải rate limit message
+            if (!hasNoViolations && !isRateLimitMessage) {
                 // Hiển thị thông tin cập nhật
                 info?.let {
                     it.latest?.let { latest ->
@@ -274,7 +341,7 @@ fun ResultScreen(
                                             text = trangThai,
                                             modifier = Modifier
                                                 .align(Alignment.TopEnd)
-                                                .offset(x = (-2).dp, y = (-2).dp)
+                                                .offset(x = (5).dp, y = (-2).dp)
                                         )
                                     }
                                 }

@@ -47,6 +47,24 @@ private const val MAX_PHONE_LENGTH = 11
 private const val FOCUS_DELAY_MS = 100L
 
 /**
+ * Format message rate limit cho OTP verification
+ */
+private fun formatOtpVerifyRateLimitMessage(remainingSeconds: Int): String {
+    val timeString = if (remainingSeconds < 60) {
+        "$remainingSeconds giây"
+    } else {
+        val minutes = remainingSeconds / 60
+        val seconds = remainingSeconds % 60
+        if (seconds == 0) {
+            "$minutes phút"
+        } else {
+            "$minutes phút $seconds giây"
+        }
+    }
+    return "Xác thực sai nhiều lần. Vui lòng thử lại sau $timeString"
+}
+
+/**
  * Custom OTP Input với 4 ô vuông
  */
 @Composable
@@ -355,8 +373,11 @@ fun LoginScreen(
     var countdown by remember { mutableStateOf(0) } // Đếm ngược để gửi lại OTP
     var rateLimitMessage by remember { mutableStateOf<String?>(null) } // Message rate limit cho login
     var rateLimitCountdown by remember { mutableStateOf(0) } // Countdown cho rate limit login
-    var otpRateLimitMessage by remember { mutableStateOf<String?>(null) } // Message rate limit cho OTP
-    var otpRateLimitCountdown by remember { mutableStateOf(0) } // Countdown cho rate limit OTP
+    var otpRateLimitMessage by remember { mutableStateOf<String?>(null) } // Message rate limit cho OTP send
+    var otpRateLimitCountdown by remember { mutableStateOf(0) } // Countdown cho rate limit OTP send
+    var otpVerifyRateLimitMessage by remember { mutableStateOf<String?>(null) } // Message rate limit cho OTP verify
+    var otpVerifyRateLimitCountdown by remember { mutableStateOf(0) } // Countdown cho rate limit OTP verify
+    var remainingVerifyAttempts by remember { mutableStateOf(3) } // Số lần thử còn lại cho verify OTP
     
     // Focus requesters cho PIN/OTP fields
     val otpFocusRequester = remember { FocusRequester() }
@@ -395,7 +416,7 @@ fun LoginScreen(
         }
     }
     
-    // Countdown timer cho rate limit OTP
+    // Countdown timer cho rate limit OTP send
     LaunchedEffect(otpRateLimitCountdown) {
         if (otpRateLimitCountdown > 0) {
             delay(1000)
@@ -416,6 +437,30 @@ fun LoginScreen(
         }
     }
     
+    // Countdown timer cho rate limit OTP verify
+    LaunchedEffect(otpVerifyRateLimitCountdown) {
+        if (otpVerifyRateLimitCountdown > 0) {
+            delay(1000)
+            otpVerifyRateLimitCountdown--
+            
+            // Cập nhật message nếu vẫn còn countdown
+            if (otpVerifyRateLimitCountdown > 0) {
+                val verifyRateLimitInfo = otpService.getVerifyRateLimitInfo(phoneNumber)
+                if (!verifyRateLimitInfo.canProceed) {
+                    // Override message cho OTP verification
+                    otpVerifyRateLimitMessage = formatOtpVerifyRateLimitMessage(otpVerifyRateLimitCountdown)
+                } else {
+                    otpVerifyRateLimitMessage = null
+                    otpVerifyRateLimitCountdown = 0
+                    remainingVerifyAttempts = otpService.getRemainingVerifyAttempts(phoneNumber)
+                }
+            } else {
+                otpVerifyRateLimitMessage = null
+                remainingVerifyAttempts = otpService.getRemainingVerifyAttempts(phoneNumber)
+            }
+        }
+    }
+    
     // Kiểm tra rate limit khi phoneNumber thay đổi
     LaunchedEffect(phoneNumber, step) {
         if (phoneNumber.isNotEmpty()) {
@@ -429,6 +474,19 @@ fun LoginScreen(
                     } else {
                         otpRateLimitMessage = null
                         otpRateLimitCountdown = 0
+                    }
+                }
+                2 -> {
+                    // Kiểm tra OTP verify rate limit ở step 2
+                    val verifyRateLimitInfo = otpService.getVerifyRateLimitInfo(phoneNumber)
+                    if (!verifyRateLimitInfo.canProceed) {
+                        // Override message cho OTP verification
+                        otpVerifyRateLimitMessage = formatOtpVerifyRateLimitMessage(verifyRateLimitInfo.remainingSeconds)
+                        otpVerifyRateLimitCountdown = verifyRateLimitInfo.remainingSeconds
+                    } else {
+                        otpVerifyRateLimitMessage = null
+                        otpVerifyRateLimitCountdown = 0
+                        remainingVerifyAttempts = otpService.getRemainingVerifyAttempts(phoneNumber)
                     }
                 }
                 3 -> {
@@ -658,7 +716,7 @@ fun LoginScreen(
                                 otp = it
                                 clearError()
                             },
-                            enabled = !isLoading,
+                            enabled = !isLoading && otpVerifyRateLimitCountdown == 0, // Disable khi bị rate limit
                             focusRequester = otpFocusRequester,
                             autoFocus = true,
                             length = OTP_LENGTH
@@ -666,53 +724,67 @@ fun LoginScreen(
                         
                         Spacer(Modifier.height(16.dp))
                         
-                        // Nút gửi lại OTP
-                        if (countdown > 0) {
-                            Text(
-                                text = "Gửi lại mã sau $countdown giây",
-                                fontSize = 12.sp,
-                                color = TextSub
-                            )
-                        } else {
-                            TextButton(
-                                onClick = {
-                                    isLoading = true
-                                    scope.launch {
-                                        val result = otpService.sendOtp(phoneNumber)
-                                        isLoading = false
-                                        when (result) {
-                                            is com.tuhoc.phatnguoi.data.remote.OTPResult.Success -> {
-                                                isOtpSent = true
-                                                countdown = 60 // Đếm ngược 60 giây
-                                                clearError()
-                                                otpRateLimitMessage = null
-                                                otpRateLimitCountdown = 0
-                                            }
-                                            is com.tuhoc.phatnguoi.data.remote.OTPResult.RateLimited -> {
-                                                // Hiển thị rate limit message
-                                                otpRateLimitMessage = result.rateLimitResult.message
-                                                otpRateLimitCountdown = result.rateLimitResult.remainingSeconds
-                                                errorMessage = null
-                                            }
-                                            is com.tuhoc.phatnguoi.data.remote.OTPResult.Error -> {
-                                                errorMessage = result.message
-                                                otpRateLimitMessage = null
+                        // Nút gửi lại OTP (ẩn khi bị rate limit verify)
+                        if (otpVerifyRateLimitCountdown == 0) {
+                            if (countdown > 0) {
+                                Text(
+                                    text = "Gửi lại mã sau $countdown giây",
+                                    fontSize = 12.sp,
+                                    color = TextSub
+                                )
+                            } else {
+                                TextButton(
+                                    onClick = {
+                                        isLoading = true
+                                        scope.launch {
+                                            val result = otpService.sendOtp(phoneNumber)
+                                            isLoading = false
+                                            when (result) {
+                                                is com.tuhoc.phatnguoi.data.remote.OTPResult.Success -> {
+                                                    isOtpSent = true
+                                                    countdown = 60 // Đếm ngược 60 giây
+                                                    clearError()
+                                                    otpRateLimitMessage = null
+                                                    otpRateLimitCountdown = 0
+                                                }
+                                                is com.tuhoc.phatnguoi.data.remote.OTPResult.RateLimited -> {
+                                                    // Hiển thị rate limit message
+                                                    otpRateLimitMessage = result.rateLimitResult.message
+                                                    otpRateLimitCountdown = result.rateLimitResult.remainingSeconds
+                                                    errorMessage = null
+                                                }
+                                                is com.tuhoc.phatnguoi.data.remote.OTPResult.Error -> {
+                                                    errorMessage = result.message
+                                                    otpRateLimitMessage = null
+                                                }
                                             }
                                         }
-                                    }
-                                },
-                                enabled = !isLoading
-                            ) {
-                                Text(
-                                    "Gửi lại mã OTP",
-                                    fontSize = 12.sp,
-                                    color = RedPrimary
-                                )
+                                    },
+                                    enabled = !isLoading
+                                ) {
+                                    Text(
+                                        "Gửi lại mã OTP",
+                                        fontSize = 12.sp,
+                                        color = RedPrimary
+                                    )
+                                }
                             }
                         }
                         
-                        // Hiển thị OTP rate limit message
+                        // Hiển thị OTP send rate limit message
                         otpRateLimitMessage?.let { message ->
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = message,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.error,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        
+                        // Hiển thị OTP verify rate limit message
+                        otpVerifyRateLimitMessage?.let { message ->
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 text = message,
@@ -933,6 +1005,12 @@ fun LoginScreen(
                                 }
                                 2 -> {
                                     // Bước 2: Xác thực OTP (chỉ cho user mới)
+                                    // Kiểm tra rate limit trước
+                                    if (otpVerifyRateLimitCountdown > 0) {
+                                        // Đang bị rate limit, không cho phép verify
+                                        return@Button
+                                    }
+                                    
                                     if (otp.length != OTP_LENGTH) {
                                         errorMessage = "Vui lòng nhập đầy đủ $OTP_LENGTH số OTP"
                                     } else {
@@ -941,11 +1019,34 @@ fun LoginScreen(
                                         scope.launch {
                                             val isValid = otpService.verifyOtp(phoneNumber, otp)
                                             if (isValid) {
-                                                // OTP hợp lệ -> chuyển sang bước tạo mật khẩu
+                                                // OTP hợp lệ -> reset rate limit và chuyển sang bước tạo mật khẩu
+                                                otpVerifyRateLimitMessage = null
+                                                otpVerifyRateLimitCountdown = 0
+                                                remainingVerifyAttempts = 3
                                                 step = 3
                                                 isLoading = false
                                             } else {
-                                                errorMessage = "Mã OTP không đúng hoặc đã hết hạn"
+                                                // OTP sai - kiểm tra rate limit
+                                                val verifyRateLimitInfo = otpService.getVerifyRateLimitInfo(phoneNumber)
+                                                if (!verifyRateLimitInfo.canProceed) {
+                                                    // Đã bị rate limit
+                                                    otpVerifyRateLimitMessage = verifyRateLimitInfo.message
+                                                    otpVerifyRateLimitCountdown = verifyRateLimitInfo.remainingSeconds
+                                                    errorMessage = null
+                                                } else {
+                                                    // Còn lần thử - hiển thị số lần thử còn lại
+                                                    remainingVerifyAttempts = otpService.getRemainingVerifyAttempts(phoneNumber)
+                                                    if (remainingVerifyAttempts > 0) {
+                                                        errorMessage = "Mã OTP không đúng hoặc đã hết hạn"
+                                                    } else {
+                                                        // Hết lần thử - chuyển sang rate limit
+                                                        val rateLimitInfo = otpService.getVerifyRateLimitInfo(phoneNumber)
+                                                        // Override message cho OTP verification
+                                                        otpVerifyRateLimitMessage = formatOtpVerifyRateLimitMessage(rateLimitInfo.remainingSeconds)
+                                                        otpVerifyRateLimitCountdown = rateLimitInfo.remainingSeconds
+                                                        errorMessage = null
+                                                    }
+                                                }
                                                 isLoading = false
                                             }
                                         }

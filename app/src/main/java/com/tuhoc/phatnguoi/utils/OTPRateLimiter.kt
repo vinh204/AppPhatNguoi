@@ -1,20 +1,24 @@
-﻿package com.tuhoc.phatnguoi.utils
+package com.tuhoc.phatnguoi.utils
 
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import java.util.concurrent.TimeUnit
 
+/**
+ * Rate Limiter cho OTP với nhiều cấp độ
+ * 
+ * Sử dụng EncryptedSharedPreferences để mã hóa dữ liệu rate limiting
+ */
 class OTPRateLimiter(private val context: Context) {
-    private val prefs: SharedPreferences = context.getSharedPreferences(
-        "otp_rate_limiter",
-        Context.MODE_PRIVATE
+    private val prefs: SharedPreferences = EncryptedPreferencesHelper.create(
+        context,
+        "otp_rate_limiter"
     )
     
     private val TAG = "OTPRateLimiter"
     
     companion object {
-        private const val MIN_INTERVAL_SECONDS = 1L
         private const val MAX_ATTEMPTS_10_MIN = 3
         private const val MAX_ATTEMPTS_1_HOUR = 5
         private const val MAX_ATTEMPTS_24_HOURS = 10
@@ -43,23 +47,8 @@ class OTPRateLimiter(private val context: Context) {
             return OTPRateLimitResult(
                 canSend = false,
                 remainingSeconds = remainingSeconds.toInt(),
-                message = "Bạn đã yêu cầu quá nhiều OTP. Vui lòng thử lại sau"
+                message = "Bạn đã yêu cầu quá nhiều OTP. Vui lòng thử lại sau ${formatTime(remainingSeconds.toInt())}"
             )
-        }
-        
-        val lastOtpTime = prefs.getLong(KEY_LAST_OTP_TIME + key, 0)
-        if (lastOtpTime > 0) {
-            val timeSinceLastOtp = currentTime - lastOtpTime
-            if (timeSinceLastOtp < TimeUnit.SECONDS.toMillis(MIN_INTERVAL_SECONDS)) {
-                val remainingSeconds = TimeUnit.SECONDS.toMillis(MIN_INTERVAL_SECONDS) - timeSinceLastOtp
-                val remainingSecondsInt = TimeUnit.MILLISECONDS.toSeconds(remainingSeconds).toInt()
-                Log.w(TAG, "Chưa đủ 60 giây kể từ lần gửi OTP trước cho $phoneNumber")
-                return OTPRateLimitResult(
-                    canSend = false,
-                    remainingSeconds = remainingSecondsInt,
-                    message = "Vui lòng đợi ${formatTime(remainingSecondsInt)} trước khi yêu cầu OTP tiếp theo"
-                )
-            }
         }
         
         if (!checkLimit(key, currentTime, MAX_ATTEMPTS_10_MIN, TIME_WINDOW_10_MIN, 

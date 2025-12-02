@@ -381,10 +381,36 @@ fun MainTabsScreen(
                             aiScreenFromResult = true // Đánh dấu AI screen được mở từ ResultScreen
                         }
                         
+                        // ✅ Kiểm tra xem có phải là rate limit message không
+                        val isRateLimitMessage = pairs.any { 
+                            it.first == "Thông báo" && (
+                                it.second.contains("tra cứu 3 lần", ignoreCase = true) ||
+                                it.second.contains("đăng nhập để tra cứu", ignoreCase = true) ||
+                                it.second.contains("vượt quá giới hạn tra cứu", ignoreCase = true) ||
+                                it.second.contains("đăng nhập để tiếp tục", ignoreCase = true)
+                            )
+                        }
+                        
                         resultScreenData = ResultScreenData(
                             info = info,
                             pairs = pairs,
-                            onShowAIScreen = onShowAIScreenCallback
+                            onShowAIScreen = onShowAIScreenCallback,
+                            onLogin = if (isRateLimitMessage) {
+                                // ✅ Callback để đóng dialog kết quả và mở dialog đăng nhập
+                                {
+                                    // Đóng dialog kết quả trước
+                                    showResultDialog = false
+                                    isResultLoading = false
+                                    resultScreenData = null
+                                    // Reset callback để tránh conflict
+                                    resetTraCuuCallback?.invoke()
+                                    // Đợi một chút để UI cập nhật, sau đó mở dialog đăng nhập
+                                    scope.launch {
+                                        kotlinx.coroutines.delay(200)
+                                        showLoginDialog = true
+                                    }
+                                }
+                            } else null
                         )
                         isResultLoading = false
                         showResultDialog = true
@@ -1319,7 +1345,8 @@ fun TraCuuScreen(
     onCloseResultDialog: () -> Unit = {},
     onRegisterResetCallback: ((() -> Unit) -> Unit)? = null
 ) {
-    val vm: TraCuuViewModel = viewModel()
+    val context = LocalContext.current
+    val vm: TraCuuViewModel = viewModel { TraCuuViewModel(context) }
     val uiState by vm.state.collectAsState()
 
     var plate by remember { mutableStateOf("") }
@@ -1328,6 +1355,8 @@ fun TraCuuScreen(
     // Đăng ký callback để reset khi đóng dialog
     LaunchedEffect(Unit) {
         onRegisterResetCallback?.invoke {
+            android.util.Log.d("TraCuuScreen", "🔄 Đóng dialog: Gọi reset() để hủy tra cứu")
+            // ✅ reset() sẽ cancel coroutine đang chạy và set isSearchCancelled = true
             vm.reset()
             plate = ""
             vehicleType = VehicleType.OTO
@@ -1375,8 +1404,25 @@ fun TraCuuScreen(
     }
 
     // Lưu lịch sử khi tra cứu thành công (chỉ lưu một lần cho mỗi kết quả)
-    LaunchedEffect(uiState, plate, vehicleType) {
+    // ✅ Chỉ lưu nếu search không bị cancel VÀ dialog vẫn đang mở
+    LaunchedEffect(uiState, plate, vehicleType, isResultDialogOpen) {
+        android.util.Log.d("TraCuuScreen", "🔍 LaunchedEffect: uiState=${uiState::class.simpleName}, isResultDialogOpen=$isResultDialogOpen, isSearchCancelled=${vm.isSearchCancelled()}")
+        
+        // ✅ Chỉ lưu lịch sử khi dialog vẫn đang mở (tránh lưu khi đã đóng dialog)
+        if (!isResultDialogOpen) {
+            android.util.Log.d("TraCuuScreen", "⏭️ Không lưu lịch sử: dialog đã đóng")
+            return@LaunchedEffect
+        }
+        
+        // Kiểm tra xem search có bị cancel không (chỉ khi đang Loading)
+        // Nếu đã Success/Error thì không cần check vì tra cứu đã hoàn thành
+        if (uiState is TraCuuUiState.Loading && vm.isSearchCancelled()) {
+            android.util.Log.d("TraCuuScreen", "⏭️ Không lưu lịch sử: search đang chạy nhưng đã bị cancel")
+            return@LaunchedEffect
+        }
+        
         if (uiState is TraCuuUiState.Success && historyManager != null && plate.isNotEmpty()) {
+            android.util.Log.d("TraCuuScreen", "💾 Kiểm tra lưu lịch sử: $plate, có vi phạm: true")
             val successState = uiState as TraCuuUiState.Success
             val loaiXeLabel = when (vehicleType) {
                 VehicleType.OTO -> "Ô tô"
@@ -1389,6 +1435,7 @@ fun TraCuuScreen(
 
             // Chỉ lưu nếu chưa lưu cho key này
             if (currentKey != lastSavedKey) {
+                android.util.Log.d("TraCuuScreen", "✅ Lưu lịch sử: $plate, số lỗi: ${successState.info?.total}")
                 historyManager.addHistory(
                     TraCuuHistoryItem(
                         bienSo = plate,
@@ -1399,11 +1446,14 @@ fun TraCuuScreen(
                     )
                 )
                 lastSavedKey = currentKey
+            } else {
+                android.util.Log.d("TraCuuScreen", "⏭️ Đã lưu lịch sử cho key này rồi: $currentKey")
             }
         } else if (uiState is TraCuuUiState.Error && historyManager != null) {
             // Kiểm tra xem có phải là "Không tìm thấy vi phạm" không
             val errorState = uiState as TraCuuUiState.Error
             if (errorState.message.contains("Không tìm thấy", ignoreCase = true) && plate.isNotEmpty()) {
+                android.util.Log.d("TraCuuScreen", "💾 Kiểm tra lưu lịch sử: $plate, có vi phạm: false")
                 val loaiXeLabel = when (vehicleType) {
                     VehicleType.OTO -> "Ô tô"
                     VehicleType.XE_MAY -> "Xe máy"
@@ -1415,6 +1465,7 @@ fun TraCuuScreen(
 
                 // Chỉ lưu nếu chưa lưu cho key này
                 if (currentKey != lastSavedKey) {
+                    android.util.Log.d("TraCuuScreen", "✅ Lưu lịch sử: $plate, không có vi phạm")
                     historyManager.addHistory(
                         TraCuuHistoryItem(
                             bienSo = plate,
@@ -1424,6 +1475,8 @@ fun TraCuuScreen(
                         )
                     )
                     lastSavedKey = currentKey
+                } else {
+                    android.util.Log.d("TraCuuScreen", "⏭️ Đã lưu lịch sử cho key này rồi: $currentKey")
                 }
             }
         }
@@ -1604,6 +1657,12 @@ fun TraCuuScreen(
                     val isNoViolation = s.message.contains("Không tìm thấy vi phạm", ignoreCase = true) ||
                                        s.message.contains("không tìm thấy", ignoreCase = true)
                     
+                    // ✅ Kiểm tra xem có phải là rate limit error không
+                    val isRateLimit = s.message.contains("tra cứu 3 lần", ignoreCase = true) ||
+                                     s.message.contains("đăng nhập để tra cứu", ignoreCase = true) ||
+                                     s.message.contains("vượt quá giới hạn tra cứu", ignoreCase = true) ||
+                                     s.message.contains("đăng nhập để tiếp tục", ignoreCase = true)
+                    
                     if (isNoViolation) {
                         // Nếu là "không tìm thấy vi phạm", hiển thị trong ResultScreen
                         var hasShownNoViolation by remember { mutableStateOf(false) }
@@ -1630,6 +1689,32 @@ fun TraCuuScreen(
                         // Reset flag khi state thay đổi
                         LaunchedEffect(key) {
                             hasShownNoViolation = false
+                        }
+                        
+                        // Không hiển thị gì ở đây vì đã mở dialog
+                        Spacer(Modifier.height(0.dp))
+                    } else if (isRateLimit) {
+                        // ✅ Rate limit error - hiển thị trong dialog thay vì đóng
+                        var hasShownRateLimit by remember { mutableStateOf(false) }
+                        LaunchedEffect(s.message) {
+                            if (!hasShownRateLimit) {
+                                // Tạo ResultScreenData với thông báo rate limit
+                                val pairsWithMessage = listOf(
+                                    "Thông báo" to s.message
+                                )
+                                // Gọi onShowResult để mở dialog và hiển thị thông báo
+                                onShowResult(
+                                    null, // Không có info
+                                    pairsWithMessage,
+                                    emptyList()
+                                )
+                                hasShownRateLimit = true
+                            }
+                        }
+                        
+                        // Reset flag khi state thay đổi
+                        LaunchedEffect(key) {
+                            hasShownRateLimit = false
                         }
                         
                         // Không hiển thị gì ở đây vì đã mở dialog
