@@ -1,7 +1,6 @@
 package com.tuhoc.phatnguoi.utils
 
 import android.content.Context
-import android.util.Log
 import com.google.ai.client.generativeai.GenerativeModel
 import com.tuhoc.phatnguoi.BuildConfig
 import kotlinx.coroutines.Dispatchers
@@ -12,6 +11,7 @@ import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
 import com.tuhoc.phatnguoi.utils.ViolationUtils.filterUnresolvedViolations as filterViolations
+import com.tuhoc.phatnguoi.security.SecureLogger
 
 /**
  * Service để tính số tiền phạt dựa trên thông tin vi phạm sử dụng AI Gemini
@@ -31,6 +31,7 @@ class AIFineCalculator(private val context: Context? = null) : AIFineCalculatorI
     private val apiKey: String = BuildConfig.GEMINI_API_KEY
     
     // Cache GenerativeModel instance để tránh tạo lại mỗi lần gọi
+    // Tối ưu: Model được cache để tránh overhead khi tạo lại
     private val model: GenerativeModel by lazy {
         GenerativeModel(
             modelName = "gemini-2.5-pro",
@@ -39,35 +40,9 @@ class AIFineCalculator(private val context: Context? = null) : AIFineCalculatorI
     }
     
     companion object {
-        private const val TAG = "AIFineCalculator"
-        private const val API_TIMEOUT_MS = 60_000L // 60 giây
-        private const val MAX_RETRIES = 2
-        private const val INITIAL_RETRY_DELAY_MS = 1000L
-        
-        /**
-         * Log debug message chỉ trong debug mode
-         */
-        private fun logD(message: String) {
-            if (BuildConfig.DEBUG) Log.d(TAG, message)
-        }
-        
-        /**
-         * Log warning message
-         */
-        private fun logW(message: String) {
-            Log.w(TAG, message)
-        }
-        
-        /**
-         * Log error message
-         */
-        private fun logE(message: String, throwable: Throwable? = null) {
-            if (throwable != null) {
-                Log.e(TAG, message, throwable)
-            } else {
-                Log.e(TAG, message)
-            }
-        }
+        private const val API_TIMEOUT_MS = 40_000L // Giảm từ 60s xuống 40s
+        private const val MAX_RETRIES = 1 // Giảm từ 2 xuống 1 để nhanh hơn
+        private const val INITIAL_RETRY_DELAY_MS = 500L // Giảm delay từ 1000ms xuống 500ms
     }
     
     /**
@@ -90,7 +65,7 @@ class AIFineCalculator(private val context: Context? = null) : AIFineCalculatorI
      */
     override suspend fun calculateFineAnalysis(violations: List<Map<String, Any>>): FineAnalysisResult? {
         if (apiKey.isBlank()) {
-            logW("API key chưa được cấu hình")
+            SecureLogger.w("API key chưa được cấu hình")
             return null
         }
         
@@ -98,7 +73,7 @@ class AIFineCalculator(private val context: Context? = null) : AIFineCalculatorI
         val unresolvedViolations = filterViolations(violations)
         
         if (unresolvedViolations.isEmpty()) {
-            logD("Không có vi phạm chưa xử phạt để phân tích")
+            SecureLogger.d("Không có vi phạm chưa xử phạt để phân tích")
             return FineAnalysisResult(
                 totalFineRange = FineAmountRange.empty(),
                 violations = emptyList()
@@ -106,22 +81,22 @@ class AIFineCalculator(private val context: Context? = null) : AIFineCalculatorI
         }
         
         // Gọi AI mỗi lần (không dùng cache, chỉ lưu tạm trong memory)
-        logD("Đang gọi AI (kết quả chỉ lưu tạm trong memory)...")
+        SecureLogger.d("Đang gọi AI (kết quả chỉ lưu tạm trong memory)...")
         return try {
             withContext(Dispatchers.IO) {
                 val result = callAIWithRetry(unresolvedViolations)
                 // KHÔNG lưu vào cache - chỉ lưu tạm trong memory (state của màn hình)
                 // Khi quay về màn hình tra cứu, state sẽ reset và dữ liệu sẽ mất
                 result?.let { 
-                    logD("Đã nhận kết quả từ AI (lưu tạm trong memory)")
+                    SecureLogger.d("Đã nhận kết quả từ AI (lưu tạm trong memory)")
                 }
                 result
             }
         } catch (e: TimeoutCancellationException) {
-            logE("Timeout khi gọi AI (quá ${API_TIMEOUT_MS}ms)", e)
+            SecureLogger.e("Timeout khi gọi AI (quá ${API_TIMEOUT_MS}ms)", e)
             null
         } catch (e: Exception) {
-            logE("Lỗi khi tính toán phân tích phạt với AI", e)
+            SecureLogger.e("Lỗi khi tính toán phân tích phạt với AI", e)
             null
         }
     }
@@ -134,26 +109,26 @@ class AIFineCalculator(private val context: Context? = null) : AIFineCalculatorI
         
         repeat(MAX_RETRIES) { attempt ->
             try {
-                logD("Thử gọi AI lần ${attempt + 1}/$MAX_RETRIES")
+                SecureLogger.d("Thử gọi AI lần ${attempt + 1}/$MAX_RETRIES")
                 return callAIWithTimeout(violations)
             } catch (e: TimeoutCancellationException) {
                 lastException = e
                 if (attempt < MAX_RETRIES - 1) {
                     val delayMs = INITIAL_RETRY_DELAY_MS * (attempt + 1) // Exponential backoff
-                    logW("Timeout, thử lại sau ${delayMs}ms...")
+                    SecureLogger.w("Timeout, thử lại sau ${delayMs}ms...")
                     delay(delayMs)
                 }
             } catch (e: Exception) {
                 lastException = e
                 if (attempt < MAX_RETRIES - 1) {
                     val delayMs = INITIAL_RETRY_DELAY_MS * (attempt + 1) // Exponential backoff
-                    logW("Lỗi khi gọi AI, thử lại sau ${delayMs}ms: ${e.message}")
+                    SecureLogger.w("Lỗi khi gọi AI, thử lại sau ${delayMs}ms")
                     delay(delayMs)
                 }
             }
         }
         
-        logE("Không thể gọi AI sau $MAX_RETRIES lần thử", lastException)
+        SecureLogger.e("Không thể gọi AI sau $MAX_RETRIES lần thử", lastException)
         return null
     }
     
@@ -173,15 +148,13 @@ class AIFineCalculator(private val context: Context? = null) : AIFineCalculatorI
         // Tạo prompt yêu cầu trả về JSON
         val prompt = buildJsonPrompt(violations)
         
-        logD("=== PROMPT JSON GỬI CHO AI ===")
-        logD(prompt)
+        SecureLogger.d("Prompt length: ${prompt.length} chars")
         
-        // Gọi API
+        // Gọi API với timeout riêng cho generateContent
         val response = model.generateContent(prompt)
         val responseText = response.text
         
-        logD("=== RESPONSE JSON TỪ AI ===")
-        logD(responseText ?: "Không có response")
+        SecureLogger.d("Response received: ${responseText != null}, length: ${responseText?.length ?: 0}")
         
         // Parse JSON từ response
         return JsonResponseParser.parseJsonResponse(responseText ?: "", violations.size)

@@ -1,4 +1,4 @@
-package com.tuhoc.phatnguoi.utils
+package com.tuhoc.phatnguoi.security
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -37,8 +37,6 @@ object EncryptedPreferencesHelper {
             )
         } catch (e: Exception) {
             Log.e(TAG, "Lỗi khi tạo EncryptedSharedPreferences: ${e.message}", e)
-            // Fallback về SharedPreferences thông thường nếu có lỗi
-            // (có thể xảy ra trên emulator hoặc device không hỗ trợ Android Keystore)
             Log.w(TAG, "Fallback về SharedPreferences thông thường")
             context.getSharedPreferences(fileName, Context.MODE_PRIVATE)
         }

@@ -33,6 +33,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tuhoc.phatnguoi.data.local.AuthManager
 import com.tuhoc.phatnguoi.data.remote.OtpService
+import com.tuhoc.phatnguoi.security.PinStrengthChecker
+import com.tuhoc.phatnguoi.ui.login.PinStrengthMessages
+import com.tuhoc.phatnguoi.ui.login.checkPinStrengthRealTime
+import com.tuhoc.phatnguoi.ui.login.validatePinOnSubmit
+import com.tuhoc.phatnguoi.security.InputValidator
 import com.tuhoc.phatnguoi.ui.theme.RedPrimary
 import com.tuhoc.phatnguoi.ui.theme.TextPrimary
 import com.tuhoc.phatnguoi.ui.theme.TextSub
@@ -318,33 +323,7 @@ fun PasswordTextFieldWithDots(
     }
 }
 
-/**
- * Validation functions
- */
-private fun validatePhoneNumber(phone: String): String? {
-    return when {
-        phone.isEmpty() -> "Vui lòng nhập số điện thoại"
-        phone.length !in MIN_PHONE_LENGTH..MAX_PHONE_LENGTH -> "Số điện thoại không hợp lệ"
-        !phone.startsWith("0") -> "Số điện thoại phải bắt đầu bằng số 0"
-        else -> null
-    }
-}
-
-private fun validatePassword(password: String): String? {
-    return if (password.length != PIN_LENGTH) {
-        "Mật khẩu phải có $PIN_LENGTH số"
-    } else {
-        null
-    }
-}
-
-private fun validateConfirmPassword(password: String, confirmPassword: String): String? {
-    return if (password != confirmPassword) {
-        "Mật khẩu xác nhận không khớp"
-    } else {
-        null
-    }
-}
+// Validation sử dụng InputValidator trực tiếp cho toàn bộ hệ thống
 
 @Composable
 fun LoginScreen(
@@ -378,6 +357,8 @@ fun LoginScreen(
     var otpVerifyRateLimitMessage by remember { mutableStateOf<String?>(null) } // Message rate limit cho OTP verify
     var otpVerifyRateLimitCountdown by remember { mutableStateOf(0) } // Countdown cho rate limit OTP verify
     var remainingVerifyAttempts by remember { mutableStateOf(3) } // Số lần thử còn lại cho verify OTP
+    var pinStrengthWarning by remember { mutableStateOf<String?>(null) } // Cảnh báo PIN yếu
+    var pinStrengthError by remember { mutableStateOf<String?>(null) } // Lỗi PIN không hợp lệ
     
     // Focus requesters cho PIN/OTP fields
     val otpFocusRequester = remember { FocusRequester() }
@@ -806,12 +787,23 @@ fun LoginScreen(
                             onValueChange = { 
                                 password = it
                                 clearError()
+                                
+                                // Kiểm tra PIN strength khi đủ 6 chữ số
+                                val (warning, error) = checkPinStrengthRealTime(it, phoneNumber, PIN_LENGTH)
+                                pinStrengthWarning = warning
+                                pinStrengthError = error
                             },
                             label = "Nhập mật khẩu mới",
                             placeholder = "Nhập mật khẩu mới",
                             enabled = !isLoading,
                             modifier = Modifier.fillMaxWidth(),
                             focusRequester = passwordFocusRequester
+                        )
+                        
+                        // Hiển thị cảnh báo/lỗi PIN strength
+                        PinStrengthMessages(
+                            warning = pinStrengthWarning,
+                            error = pinStrengthError
                         )
                         
                         Spacer(Modifier.height(16.dp))
@@ -945,7 +937,9 @@ fun LoginScreen(
                                 1 -> {
                                     // Bước 1: Kiểm tra số điện thoại và gửi OTP nếu chưa đăng ký
                                     val phone = phoneNumber.trim()
-                                    val validationError = validatePhoneNumber(phone)
+                                    val normalizedPhone = InputValidator.normalizePhoneNumber(phone)
+                                    val validationResult = InputValidator.validatePhoneNumber(normalizedPhone)
+                                    val validationError = if (validationResult.isError()) validationResult.getErrorMessage() else null
                                     if (validationError != null) {
                                         errorMessage = validationError
                                     } else {
@@ -1056,7 +1050,8 @@ fun LoginScreen(
                                     // Bước 3: Xử lý mật khẩu
                                     if (isExistingUser) {
                                         // Đăng nhập với mật khẩu
-                                        val validationError = validatePassword(password)
+                                        val passwordValidationResult = InputValidator.validatePassword(password)
+                                        val validationError = if (passwordValidationResult.isError()) passwordValidationResult.getErrorMessage() else null
                                         if (validationError != null) {
                                             errorMessage = validationError
                                         } else {
@@ -1104,17 +1099,31 @@ fun LoginScreen(
                                         }
                                     } else {
                                         // Tạo tài khoản mới
-                                        val passwordError = validatePassword(password)
-                                        val confirmError = validateConfirmPassword(password, confirmPassword)
+                                        val passwordValidationResult = InputValidator.validatePassword(password)
+                                        val passwordError = if (passwordValidationResult.isError()) passwordValidationResult.getErrorMessage() else null
+                                        val confirmValidationResult = InputValidator.validateConfirmPassword(password, confirmPassword)
+                                        val confirmError = if (confirmValidationResult.isError()) confirmValidationResult.getErrorMessage() else null
+                                        val pinError = validatePinOnSubmit(password, phoneNumber, PIN_LENGTH)
+                                        
                                         when {
                                             passwordError != null -> errorMessage = passwordError
                                             confirmError != null -> errorMessage = confirmError
+                                            pinError != null -> {
+                                                errorMessage = pinError
+                                                pinStrengthError = pinError
+                                            }
                                             else -> {
                                                 clearError()
+                                                pinStrengthError = null
                                                 isLoading = true
                                                 scope.launch {
-                                                    authManager.createAccount(phoneNumber, password)
+                                                    val result = authManager.createAccount(phoneNumber, password)
+                                                    result.onSuccess {
                                                     onLoginSuccess(true) // true = đăng ký mới
+                                                    }.onFailure { exception ->
+                                                        errorMessage = exception.message ?: "Không thể tạo tài khoản"
+                                                        isLoading = false
+                                                    }
                                                 }
                                             }
                                         }

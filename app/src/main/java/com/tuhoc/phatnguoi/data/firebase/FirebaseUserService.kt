@@ -2,7 +2,7 @@ package com.tuhoc.phatnguoi.data.firebase
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
-import com.tuhoc.phatnguoi.utils.PasswordHasher
+import com.tuhoc.phatnguoi.security.PasswordHasher
 import kotlinx.coroutines.tasks.await
 import android.util.Log
 

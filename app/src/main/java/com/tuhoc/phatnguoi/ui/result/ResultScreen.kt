@@ -341,7 +341,7 @@ fun ResultScreen(
                                             text = trangThai,
                                             modifier = Modifier
                                                 .align(Alignment.TopEnd)
-                                                .offset(x = (5).dp, y = (-2).dp)
+                                                .offset(x = (5).dp, y = (-5).dp)
                                         )
                                     }
                                 }

@@ -1,13 +1,29 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Backup rules file để bảo vệ dữ liệu nhạy cảm
    See https://developer.android.com/guide/topics/data/autobackup
    for details.
    Note: This file is ignored for devices older than API 31
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- Loại trừ tất cả dữ liệu nhạy cảm khỏi backup -->
+    
+    <!-- Loại trừ OTP cache (chứa mã OTP) -->
+    <exclude domain="sharedpref" path="otp_cache.xml"/>
+    
+    <!-- Loại trừ rate limiter data (chứa thông tin về attempts) -->
+    <exclude domain="sharedpref" path="rate_limiter.xml"/>
+    <exclude domain="sharedpref" path="otp_rate_limiter.xml"/>
+    <exclude domain="sharedpref" path="tra_cuu_rate_limiter.xml"/>
+    
+    <!-- Loại trừ encrypted preferences (chứa dữ liệu đã mã hóa) -->
+    <exclude domain="sharedpref" path="encrypted_prefs.xml"/>
+    
+    <!-- Loại trừ tất cả file trong thư mục files (có thể chứa dữ liệu nhạy cảm) -->
+    <exclude domain="file" path="."/>
+    
+    <!-- Chỉ backup dữ liệu không nhạy cảm -->
+    <!-- Notification settings có thể được backup (không chứa thông tin nhạy cảm) -->
+    <include domain="sharedpref" path="notification_settings.xml"/>
 </full-backup-content>

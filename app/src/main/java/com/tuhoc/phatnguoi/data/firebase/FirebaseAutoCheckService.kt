@@ -29,7 +29,7 @@ class FirebaseAutoCheckService {
         enabled: Boolean = true
     ): Result<String> {
         return try {
-            Log.d(TAG, "💾 Đang lưu/cập nhật auto check: bienSo=$bienSo, userId=$userId")
+            Log.d(TAG, "Đang lưu/cập nhật auto check: bienSo=$bienSo, userId=$userId")
             
             // Tìm document có cùng userId và bienSo để cập nhật hoặc tạo mới
             val snapshot = db.collection("auto_check")
@@ -49,25 +49,25 @@ class FirebaseAutoCheckService {
             
             if (snapshot.documents.isNotEmpty()) {
                 val documentId = snapshot.documents[0].id
-                Log.d(TAG, "🔄 Cập nhật auto check cũ: documentId=$documentId")
+                Log.d(TAG, "Cập nhật auto check cũ: documentId=$documentId")
                 
                 repository.updateDocument("auto_check", documentId, data).fold(
                     onSuccess = { 
-                        Log.d(TAG, "✅ Đã cập nhật auto check: $documentId")
+                        Log.d(TAG, "Đã cập nhật auto check: $documentId")
                         Result.success(documentId) 
                     },
                     onFailure = { error ->
-                        Log.e(TAG, "❌ Lỗi khi cập nhật: ${error.message}", error)
+                        Log.e(TAG, "Lỗi khi cập nhật: ${error.message}", error)
                         Result.failure(error)
                     }
                 )
             } else {
-                Log.d(TAG, "➕ Tạo auto check mới")
+                Log.d(TAG, "Tạo auto check mới")
                 val newData = data + ("createdAt" to Timestamp.now())
                 repository.saveDocument("auto_check", newData)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Exception khi lưu auto check: ${e.message}", e)
+            Log.e(TAG, "Exception khi lưu auto check: ${e.message}", e)
             Result.failure(e)
         }
     }

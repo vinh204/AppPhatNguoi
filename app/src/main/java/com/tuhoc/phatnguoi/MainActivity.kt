@@ -96,14 +96,14 @@ class MainActivity : ComponentActivity() {
             if (!isInitialized) {
                 FirebaseInitHelper.initDatabase(this) { success, error ->
                     if (success) {
-                        android.util.Log.d("MainActivity", "✅ Firestore database đã được khởi tạo tự động!")
+                        android.util.Log.d("MainActivity", "Firestore database đã được khởi tạo tự động!")
                     } else {
-                        android.util.Log.w("MainActivity", "⚠️ Chưa thể khởi tạo Firestore database: $error")
+                        android.util.Log.w("MainActivity", "Chưa thể khởi tạo Firestore database: $error")
                         // Không hiển thị lỗi cho user, chỉ log - app vẫn hoạt động bình thường
                     }
                 }
             } else {
-                android.util.Log.d("MainActivity", "✅ Firestore database đã được khởi tạo từ trước")
+                android.util.Log.d("MainActivity", "Firestore database đã được khởi tạo từ trước")
             }
         }
 
@@ -1355,7 +1355,7 @@ fun TraCuuScreen(
     // Đăng ký callback để reset khi đóng dialog
     LaunchedEffect(Unit) {
         onRegisterResetCallback?.invoke {
-            android.util.Log.d("TraCuuScreen", "🔄 Đóng dialog: Gọi reset() để hủy tra cứu")
+            android.util.Log.d("TraCuuScreen", "Đóng dialog: Gọi reset() để hủy tra cứu")
             // ✅ reset() sẽ cancel coroutine đang chạy và set isSearchCancelled = true
             vm.reset()
             plate = ""
@@ -1406,23 +1406,23 @@ fun TraCuuScreen(
     // Lưu lịch sử khi tra cứu thành công (chỉ lưu một lần cho mỗi kết quả)
     // ✅ Chỉ lưu nếu search không bị cancel VÀ dialog vẫn đang mở
     LaunchedEffect(uiState, plate, vehicleType, isResultDialogOpen) {
-        android.util.Log.d("TraCuuScreen", "🔍 LaunchedEffect: uiState=${uiState::class.simpleName}, isResultDialogOpen=$isResultDialogOpen, isSearchCancelled=${vm.isSearchCancelled()}")
+        android.util.Log.d("TraCuuScreen", "LaunchedEffect: uiState=${uiState::class.simpleName}, isResultDialogOpen=$isResultDialogOpen, isSearchCancelled=${vm.isSearchCancelled()}")
         
         // ✅ Chỉ lưu lịch sử khi dialog vẫn đang mở (tránh lưu khi đã đóng dialog)
         if (!isResultDialogOpen) {
-            android.util.Log.d("TraCuuScreen", "⏭️ Không lưu lịch sử: dialog đã đóng")
+            android.util.Log.d("TraCuuScreen", "Không lưu lịch sử: dialog đã đóng")
             return@LaunchedEffect
         }
         
         // Kiểm tra xem search có bị cancel không (chỉ khi đang Loading)
         // Nếu đã Success/Error thì không cần check vì tra cứu đã hoàn thành
         if (uiState is TraCuuUiState.Loading && vm.isSearchCancelled()) {
-            android.util.Log.d("TraCuuScreen", "⏭️ Không lưu lịch sử: search đang chạy nhưng đã bị cancel")
+            android.util.Log.d("TraCuuScreen", "Không lưu lịch sử: search đang chạy nhưng đã bị cancel")
             return@LaunchedEffect
         }
         
         if (uiState is TraCuuUiState.Success && historyManager != null && plate.isNotEmpty()) {
-            android.util.Log.d("TraCuuScreen", "💾 Kiểm tra lưu lịch sử: $plate, có vi phạm: true")
+            android.util.Log.d("TraCuuScreen", "Kiểm tra lưu lịch sử: $plate, có vi phạm: true")
             val successState = uiState as TraCuuUiState.Success
             val loaiXeLabel = when (vehicleType) {
                 VehicleType.OTO -> "Ô tô"
@@ -1435,7 +1435,7 @@ fun TraCuuScreen(
 
             // Chỉ lưu nếu chưa lưu cho key này
             if (currentKey != lastSavedKey) {
-                android.util.Log.d("TraCuuScreen", "✅ Lưu lịch sử: $plate, số lỗi: ${successState.info?.total}")
+                android.util.Log.d("TraCuuScreen", "Lưu lịch sử: $plate, số lỗi: ${successState.info?.total}")
                 historyManager.addHistory(
                     TraCuuHistoryItem(
                         bienSo = plate,
@@ -1447,13 +1447,13 @@ fun TraCuuScreen(
                 )
                 lastSavedKey = currentKey
             } else {
-                android.util.Log.d("TraCuuScreen", "⏭️ Đã lưu lịch sử cho key này rồi: $currentKey")
+                android.util.Log.d("TraCuuScreen", "Đã lưu lịch sử cho key này rồi: $currentKey")
             }
         } else if (uiState is TraCuuUiState.Error && historyManager != null) {
             // Kiểm tra xem có phải là "Không tìm thấy vi phạm" không
             val errorState = uiState as TraCuuUiState.Error
             if (errorState.message.contains("Không tìm thấy", ignoreCase = true) && plate.isNotEmpty()) {
-                android.util.Log.d("TraCuuScreen", "💾 Kiểm tra lưu lịch sử: $plate, có vi phạm: false")
+                android.util.Log.d("TraCuuScreen", "Kiểm tra lưu lịch sử: $plate, có vi phạm: false")
                 val loaiXeLabel = when (vehicleType) {
                     VehicleType.OTO -> "Ô tô"
                     VehicleType.XE_MAY -> "Xe máy"
@@ -1465,7 +1465,7 @@ fun TraCuuScreen(
 
                 // Chỉ lưu nếu chưa lưu cho key này
                 if (currentKey != lastSavedKey) {
-                    android.util.Log.d("TraCuuScreen", "✅ Lưu lịch sử: $plate, không có vi phạm")
+                    android.util.Log.d("TraCuuScreen", "Lưu lịch sử: $plate, không có vi phạm")
                     historyManager.addHistory(
                         TraCuuHistoryItem(
                             bienSo = plate,
@@ -1476,7 +1476,7 @@ fun TraCuuScreen(
                     )
                     lastSavedKey = currentKey
                 } else {
-                    android.util.Log.d("TraCuuScreen", "⏭️ Đã lưu lịch sử cho key này rồi: $currentKey")
+                    android.util.Log.d("TraCuuScreen", "Đã lưu lịch sử cho key này rồi: $currentKey")
                 }
             }
         }

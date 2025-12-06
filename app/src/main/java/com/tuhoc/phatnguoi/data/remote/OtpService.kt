@@ -3,11 +3,11 @@ package com.tuhoc.phatnguoi.data.remote
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import com.tuhoc.phatnguoi.utils.AdvancedRateLimiter
-import com.tuhoc.phatnguoi.utils.EncryptedPreferencesHelper
-import com.tuhoc.phatnguoi.utils.OTPRateLimiter
-import com.tuhoc.phatnguoi.utils.OTPRateLimitResult
-import com.tuhoc.phatnguoi.utils.RateLimitResult
+import com.tuhoc.phatnguoi.security.AdvancedRateLimiter
+import com.tuhoc.phatnguoi.security.EncryptedPreferencesHelper
+import com.tuhoc.phatnguoi.security.OTPRateLimiter
+import com.tuhoc.phatnguoi.security.OTPRateLimitResult
+import com.tuhoc.phatnguoi.security.RateLimitResult
 import kotlinx.coroutines.delay
 import java.security.SecureRandom
 

@@ -91,7 +91,6 @@ class NotificationHelper(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
-        // Tạo notification với style giống Messenger
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info) // Có thể thay bằng icon tùy chỉnh sau
             .setContentTitle(title)

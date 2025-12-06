@@ -6,7 +6,11 @@ import com.tuhoc.phatnguoi.data.local.AuthManager
 import com.tuhoc.phatnguoi.data.local.HistoryManager
 import com.tuhoc.phatnguoi.data.local.NotificationSettingsManager
 import com.tuhoc.phatnguoi.data.remote.PhatNguoiRepository
+import com.tuhoc.phatnguoi.data.remote.SmsGatewayServiceFactory
 import com.tuhoc.phatnguoi.utils.PermissionHelper
+import com.tuhoc.phatnguoi.security.InputValidator
+import com.tuhoc.phatnguoi.security.SecureErrorHandler
+import com.tuhoc.phatnguoi.security.SecureLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -16,6 +20,11 @@ import java.util.Calendar
 
 /**
  * Service để tự động tra cứu các biển số đã đăng ký
+ * 
+ * Đã tích hợp các tính năng bảo mật:
+ * - Secure logging để ẩn thông tin nhạy cảm
+ * - Input validation để kiểm tra dữ liệu đầu vào
+ * - Secure error handling để xử lý lỗi an toàn
  */
 class AutoCheckService(private val context: Context) {
     private val autoCheckManager = AutoCheckManager(context)
@@ -23,8 +32,12 @@ class AutoCheckService(private val context: Context) {
     private val historyManager = HistoryManager(context)
     private val settingsManager = NotificationSettingsManager(context)
     private val notificationHelper = NotificationHelper(context)
-    private val repository = PhatNguoiRepository()
+    private val repository = PhatNguoiRepository(context)
     private val scope = CoroutineScope(Dispatchers.IO)
+    
+    // Security components
+    private val inputValidator = InputValidator
+    private val secureErrorHandler = SecureErrorHandler(context)
     
     /**
      * Thực hiện tự động tra cứu cho tất cả biển số đã đăng ký
@@ -37,17 +50,22 @@ class AutoCheckService(private val context: Context) {
                 return@withContext
             }
             
-            // Kiểm tra có bật thông báo qua ứng dụng không
+            // Kiểm tra có bật thông báo qua ứng dụng hoặc SMS không
             val notifyApp = settingsManager.getNotifyApp()
-            if (!notifyApp) {
+            val notifySMS = settingsManager.getNotifySMS()
+            if (!notifyApp && !notifySMS) {
+                // Không có phương thức thông báo nào được bật
                 return@withContext
             }
             
-            // Kiểm tra permission thông báo (Android 13+)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Kiểm tra permission thông báo (Android 13+) nếu bật thông báo qua app
+            if (notifyApp && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 if (!PermissionHelper.hasNotificationPermission(context)) {
-                    android.util.Log.w("AutoCheckService", "No notification permission")
-                    return@withContext
+                    SecureLogger.w("No notification permission")
+                    // Vẫn tiếp tục nếu có bật SMS
+                    if (!notifySMS) {
+                        return@withContext
+                    }
                 }
             }
             
@@ -57,9 +75,18 @@ class AutoCheckService(private val context: Context) {
             // Tra cứu từng biển số
             autoCheckList.forEach { autoCheck ->
                 try {
-                    // Gọi API tra cứu qua repository
+                    // Validate biển số trước khi tra cứu
+                    val normalizedBienSo = inputValidator.normalizeBienSo(autoCheck.bienSo)
+                    val validationResult = inputValidator.validateBienSo(normalizedBienSo)
+                    
+                    if (validationResult is com.tuhoc.phatnguoi.security.InputValidator.ValidationResult.Error) {
+                        SecureLogger.e("Invalid biển số: ${validationResult.message}")
+                        return@forEach
+                    }
+                    
+                    // Gọi API tra cứu qua repository với biển số đã được normalize
                     val result = repository.checkPhatNguoi(
-                        plate = autoCheck.bienSo,
+                        plate = normalizedBienSo,
                         vehicleType = autoCheck.loaiXe
                     )
                     
@@ -68,9 +95,9 @@ class AutoCheckService(private val context: Context) {
                     val daXuPhat = result.soDaXuPhat ?: 0
                     val chuaXuPhat = result.soChuaXuPhat ?: 0
                     
-                    // Lưu vào lịch sử
+                    // Lưu vào lịch sử (sử dụng biển số đã normalize)
                     val historyItem = com.tuhoc.phatnguoi.data.local.TraCuuHistoryItem(
-                        bienSo = autoCheck.bienSo,
+                        bienSo = normalizedBienSo,
                         loaiXe = when (autoCheck.loaiXe) {
                             1 -> "Ô tô"
                             2 -> "Xe máy"
@@ -86,7 +113,7 @@ class AutoCheckService(private val context: Context) {
                     // Hiển thị thông báo hệ thống Android (chỉ khi bật thông báo qua ứng dụng)
                     if (settingsManager.getNotifyApp()) {
                         notificationHelper.showTraCuuNotification(
-                            bienSo = autoCheck.bienSo,
+                            bienSo = normalizedBienSo,
                             loaiXe = autoCheck.loaiXe,
                             coViPham = coViPham,
                             soLoi = if (coViPham) soLoi else null,
@@ -94,9 +121,69 @@ class AutoCheckService(private val context: Context) {
                             chuaXuPhat = chuaXuPhat
                         )
                     }
+                    
+                    // Gửi SMS nếu bật thông báo qua SMS và có vi phạm
+                    if (settingsManager.getNotifySMS() && coViPham && soLoi > 0) {
+                        try {
+                            val phoneNumber = authManager.getPhoneNumber()
+                            if (phoneNumber != null) {
+                                // Validate số điện thoại
+                                val normalizedPhone = inputValidator.normalizePhoneNumber(phoneNumber)
+                                val phoneValidation = inputValidator.validatePhoneNumber(normalizedPhone)
+                                
+                                if (phoneValidation is com.tuhoc.phatnguoi.security.InputValidator.ValidationResult.Error) {
+                                    SecureLogger.e("Invalid phone number for SMS: ${phoneValidation.message}")
+                                    return@forEach
+                                }
+                                
+                                // Tạo SMS Gateway Service dựa trên cấu hình
+                                val smsService = SmsGatewayServiceFactory.create(
+                                    useMock = settingsManager.getSmsUseMock(),
+                                    apiUrl = settingsManager.getSmsApiUrl().takeIf { it.isNotEmpty() },
+                                    apiKey = settingsManager.getSmsApiKey().takeIf { it.isNotEmpty() }
+                                )
+                                
+                                // Tạo nội dung tin nhắn
+                                val loaiXeText = when (autoCheck.loaiXe) {
+                                    1 -> "Ô tô"
+                                    2 -> "Xe máy"
+                                    3 -> "Xe đạp điện"
+                                    else -> "Ô tô"
+                                }
+                                
+                                val message = buildString {
+                                    append("Thông báo vi phạm giao thông\n")
+                                    append("Biển số: $normalizedBienSo\n")
+                                    append("Loại xe: $loaiXeText\n")
+                                    append("Số lỗi: $soLoi\n")
+                                    append("Đã xử phạt: $daXuPhat\n")
+                                    append("Chưa xử phạt: $chuaXuPhat\n")
+                                    append("\nVui lòng kiểm tra chi tiết trong ứng dụng.")
+                                }
+                                
+                                // Gửi SMS
+                                val smsResult = smsService.sendSms(normalizedPhone, message)
+                                when (smsResult) {
+                                    is com.tuhoc.phatnguoi.data.remote.SmsResult.Success -> {
+                                        SecureLogger.d("SMS sent successfully")
+                                    }
+                                    is com.tuhoc.phatnguoi.data.remote.SmsResult.Error -> {
+                                        SecureLogger.e("SMS sending failed: ${smsResult.message}")
+                                    }
+                                }
+                            } else {
+                                SecureLogger.w("Phone number not found for SMS")
+                            }
+                        } catch (e: Exception) {
+                            // Sử dụng SecureErrorHandler để xử lý lỗi an toàn
+                            val userError = secureErrorHandler.handleError(e)
+                            SecureLogger.e("Error sending SMS: ${userError.message}", e)
+                        }
+                    }
                 } catch (e: Exception) {
-                    // Log lỗi nhưng tiếp tục với biển số tiếp theo
-                    android.util.Log.e("AutoCheckService", "Lỗi tra cứu ${autoCheck.bienSo}: ${e.message}")
+                    // Sử dụng SecureErrorHandler để xử lý lỗi an toàn
+                    val userError = secureErrorHandler.handleError(e)
+                    SecureLogger.e("Error during auto check: ${userError.message}", e)
                 }
             }
         }

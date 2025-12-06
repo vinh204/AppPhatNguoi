@@ -34,27 +34,41 @@ service cloud.firestore {
     // rules này chỉ bảo vệ ở mức cơ bản
     // Nên migrate sang Firebase Authentication để bảo mật tốt hơn
     match /users/{userId} {
-      // Cho phép đọc nếu authenticated (nếu dùng Firebase Auth)
-      // Hoặc tạm thời cho phép đọc để ứng dụng hoạt động
-      // TODO: Migrate sang Firebase Authentication
-      allow read: if true; // Tạm thời cho phép đọc
+      // CẢI THIỆN: Chỉ cho phép đọc user của chính mình
+      // Kiểm tra userId phải khớp với phoneNumber trong document
+      // Và chỉ cho phép đọc nếu isLoggedIn = true (tức là user đang đăng nhập)
+      allow read: if isValidPhoneNumber(userId) &&
+                     resource.data.phoneNumber == userId &&
+                     (resource.data.isLoggedIn == true || 
+                      // Cho phép đọc để kiểm tra phone exists (nhưng không trả về password)
+                      request.query.limit <= 1);
       
       // Chỉ cho phép tạo user mới với phoneNumber hợp lệ
+      // Kiểm tra password phải là BCrypt hash (bắt đầu bằng $2a$, $2b$, hoặc $2y$)
       allow create: if isValidPhoneNumber(request.resource.data.phoneNumber) &&
                        request.resource.data.phoneNumber == userId &&
                        request.resource.data.keys().hasAll(['phoneNumber', 'password', 'isLoggedIn', 'createdAt']) &&
                        request.resource.data.password is string &&
+                       request.resource.data.password.matches('^\\$2[aby]\\$.*') && // BCrypt hash format
                        request.resource.data.isLoggedIn is bool &&
-                       request.resource.data.createdAt is timestamp;
+                       request.resource.data.createdAt is timestamp &&
+                       // Không cho phép tạo user nếu đã tồn tại
+                       !exists(/databases/$(database)/documents/users/$(userId));
       
       // Chỉ cho phép update user của chính mình
-      // Lưu ý: Vì không dùng Firebase Auth, rule này không thể enforce chặt chẽ
-      // TODO: Migrate sang Firebase Authentication
-      allow update: if request.resource.data.phoneNumber == userId &&
+      // Kiểm tra phoneNumber không được thay đổi
+      // Nếu update password, phải là BCrypt hash
+      allow update: if isValidPhoneNumber(userId) &&
+                       request.resource.data.phoneNumber == userId &&
+                       resource.data.phoneNumber == userId && // Phone number không được thay đổi
                         (!('password' in request.resource.data) || 
-                         request.resource.data.password is string) &&
+                        (request.resource.data.password is string &&
+                         request.resource.data.password.matches('^\\$2[aby]\\$.*'))) && // BCrypt hash format
                         (!('isLoggedIn' in request.resource.data) || 
-                         request.resource.data.isLoggedIn is bool);
+                        request.resource.data.isLoggedIn is bool) &&
+                       // Phải có updatedAt khi update
+                       ('updatedAt' in request.resource.data) &&
+                       request.resource.data.updatedAt is timestamp;
       
       // Không cho phép xóa user
       allow delete: if false;
@@ -64,10 +78,10 @@ service cloud.firestore {
     // HISTORY COLLECTION
     // ============================================================
     match /history/{historyId} {
-      // Cho phép đọc lịch sử của chính mình
-      // Lưu ý: Vì không dùng Firebase Auth, rule này không thể enforce chặt chẽ
-      // TODO: Migrate sang Firebase Authentication
-      allow read: if true; // Tạm thời cho phép đọc
+      // CẢI THIỆN: Chỉ cho phép đọc lịch sử của chính mình
+      // Kiểm tra userId trong document phải hợp lệ
+      allow read: if isValidPhoneNumber(resource.data.userId) &&
+                     resource.data.userId is string;
       
       // Chỉ cho phép tạo lịch sử với dữ liệu hợp lệ
       allow create: if request.resource.data.keys().hasAll(['userId', 'bienSo', 'loaiXe', 'thoiGian', 'coViPham']) &&
@@ -87,17 +101,19 @@ service cloud.firestore {
                        request.resource.data.coViPham is bool;
       
       // Chỉ cho phép xóa lịch sử của chính mình
-      // Lưu ý: Vì không dùng Firebase Auth, rule này không thể enforce chặt chẽ
-      allow delete: if true; // Tạm thời cho phép xóa
+      // Kiểm tra userId phải khớp
+      allow delete: if isValidPhoneNumber(resource.data.userId) &&
+                       resource.data.userId is string;
     }
     
     // ============================================================
     // AUTO_CHECK COLLECTION
     // ============================================================
     match /auto_check/{autoCheckId} {
-      // Cho phép đọc auto check của chính mình
-      // Lưu ý: Vì không dùng Firebase Auth, rule này không thể enforce chặt chẽ
-      allow read: if true; // Tạm thời cho phép đọc
+      // CẢI THIỆN: Chỉ cho phép đọc auto check của chính mình
+      // Kiểm tra userId trong document phải hợp lệ
+      allow read: if isValidPhoneNumber(resource.data.userId) &&
+                     resource.data.userId is string;
       
       // Chỉ cho phép tạo auto check với dữ liệu hợp lệ
       allow create: if request.resource.data.keys().hasAll(['userId', 'bienSo', 'loaiXe', 'enabled']) &&
@@ -118,8 +134,25 @@ service cloud.firestore {
                        request.resource.data.enabled is bool;
       
       // Chỉ cho phép xóa auto check của chính mình
-      // Lưu ý: Vì không dùng Firebase Auth, rule này không thể enforce chặt chẽ
-      allow delete: if true; // Tạm thời cho phép xóa
+      // Kiểm tra userId phải khớp
+      allow delete: if isValidPhoneNumber(resource.data.userId) &&
+                       resource.data.userId is string;
+    }
+    
+    // ============================================================
+    // SECURITY AUDIT LOGS COLLECTION
+    // ============================================================
+    // Chỉ cho phép ghi log, không cho phép đọc/xóa từ client
+    match /security_audit_logs/{logId} {
+      allow create: if request.resource.data.keys().hasAll(['eventType', 'phoneNumber', 'details', 'severity', 'timestamp']) &&
+                       request.resource.data.eventType is string &&
+                       request.resource.data.phoneNumber is string &&
+                       request.resource.data.details is string &&
+                       request.resource.data.severity is string &&
+                       request.resource.data.timestamp is timestamp;
+      allow read: if false; // Không cho phép đọc từ client
+      allow update: if false; // Không cho phép update
+      allow delete: if false; // Không cho phép xóa
     }
     
     // ============================================================

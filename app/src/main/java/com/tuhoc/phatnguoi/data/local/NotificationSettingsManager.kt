@@ -20,12 +20,20 @@ class NotificationSettingsManager(context: Context) {
         private const val KEY_HOUR = "hour"
         private const val KEY_MINUTE = "minute"
         
+        // SMS Gateway configuration
+        private const val KEY_SMS_USE_MOCK = "sms_use_mock"
+        private const val KEY_SMS_API_URL = "sms_api_url"
+        private const val KEY_SMS_API_KEY = "sms_api_key"
+        
         // Default values
         private const val DEFAULT_NOTIFY_APP = true
         private const val DEFAULT_NOTIFY_SMS = false
         private const val DEFAULT_FREQUENCY = "Hàng ngày"
         private const val DEFAULT_HOUR = 8
         private const val DEFAULT_MINUTE = 0
+        private const val DEFAULT_SMS_USE_MOCK = true
+        private const val DEFAULT_SMS_API_URL = ""
+        private const val DEFAULT_SMS_API_KEY = ""
     }
     
     /**
@@ -96,6 +104,48 @@ class NotificationSettingsManager(context: Context) {
      */
     fun getMinute(): Int {
         return prefs.getInt(KEY_MINUTE, DEFAULT_MINUTE)
+    }
+    
+    /**
+     * Lưu cài đặt sử dụng mock SMS Gateway
+     */
+    fun setSmsUseMock(useMock: Boolean) {
+        prefs.edit().putBoolean(KEY_SMS_USE_MOCK, useMock).apply()
+    }
+    
+    /**
+     * Lấy cài đặt sử dụng mock SMS Gateway
+     */
+    fun getSmsUseMock(): Boolean {
+        return prefs.getBoolean(KEY_SMS_USE_MOCK, DEFAULT_SMS_USE_MOCK)
+    }
+    
+    /**
+     * Lưu SMS Gateway API URL
+     */
+    fun setSmsApiUrl(url: String) {
+        prefs.edit().putString(KEY_SMS_API_URL, url).apply()
+    }
+    
+    /**
+     * Lấy SMS Gateway API URL
+     */
+    fun getSmsApiUrl(): String {
+        return prefs.getString(KEY_SMS_API_URL, DEFAULT_SMS_API_URL) ?: DEFAULT_SMS_API_URL
+    }
+    
+    /**
+     * Lưu SMS Gateway API Key
+     */
+    fun setSmsApiKey(key: String) {
+        prefs.edit().putString(KEY_SMS_API_KEY, key).apply()
+    }
+    
+    /**
+     * Lấy SMS Gateway API Key
+     */
+    fun getSmsApiKey(): String {
+        return prefs.getString(KEY_SMS_API_KEY, DEFAULT_SMS_API_KEY) ?: DEFAULT_SMS_API_KEY
     }
     
     /**

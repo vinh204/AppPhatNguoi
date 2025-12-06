@@ -100,7 +100,7 @@ fun AIFineCalculatorScreen(
             
             // Nếu đã có kết quả tính sẵn từ MainActivity, dùng luôn (KHÔNG gọi AI)
             if (preCalculatedAnalysis != null) {
-                android.util.Log.d("AIFineCalculatorScreen", "✅ Sử dụng kết quả đã tính sẵn (KHÔNG gọi AI)")
+                android.util.Log.d("AIFineCalculatorScreen", "Sử dụng kết quả đã tính sẵn (KHÔNG gọi AI)")
                 totalFineRange = preCalculatedAnalysis.totalFineRange
                 analysisResults = createViolationAnalysisList(unresolvedViolationsList, preCalculatedAnalysis)
                 // Thêm delay 1 giây cho loading khi xem chi tiết
@@ -110,7 +110,7 @@ fun AIFineCalculatorScreen(
             }
             
             // Chỉ gọi AI nếu KHÔNG có kết quả sẵn
-            android.util.Log.d("AIFineCalculatorScreen", "🔄 Không có kết quả sẵn, đang gọi AI...")
+            android.util.Log.d("AIFineCalculatorScreen", "Không có kết quả sẵn, đang gọi AI...")
             val analysisResult = fineCalculator.calculateFineAnalysis(unresolvedViolationsList)
             
             if (analysisResult != null) {

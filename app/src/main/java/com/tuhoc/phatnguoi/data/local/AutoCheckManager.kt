@@ -28,23 +28,23 @@ class AutoCheckManager(context: Context) {
             try {
                 val currentUser = authManager.getCurrentUser()
                 if (currentUser == null) {
-                    Log.w(TAG, "⚠️ Không có user đăng nhập, không thể lưu auto check")
+                    Log.w(TAG, "Không có user đăng nhập, không thể lưu auto check")
                     return@withContext
                 }
                 
                 val phoneNumber = currentUser.phoneNumber
-                Log.d(TAG, "💾 Đang lưu/cập nhật auto check: bienSo=$bienSo, loaiXe=$loaiXe, enabled=$enabled")
+                Log.d(TAG, "Đang lưu/cập nhật auto check: bienSo=$bienSo, loaiXe=$loaiXe, enabled=$enabled")
                 firebaseAutoCheckService.addAutoCheck(phoneNumber, bienSo, loaiXe, enabled)
                     .fold(
                         onSuccess = { autoCheckId ->
-                            Log.d(TAG, "✅ Đã lưu/cập nhật auto check lên Firestore: $autoCheckId")
+                            Log.d(TAG, "Đã lưu/cập nhật auto check lên Firestore: $autoCheckId")
                         },
                         onFailure = { error ->
-                            Log.e(TAG, "❌ Không thể lưu auto check lên Firestore: ${error.message}", error)
+                            Log.e(TAG, "Không thể lưu auto check lên Firestore: ${error.message}", error)
                         }
                     )
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Exception khi lưu auto check: ${e.message}", e)
+                Log.e(TAG, "Exception khi lưu auto check: ${e.message}", e)
             }
         }
     }
@@ -58,7 +58,7 @@ class AutoCheckManager(context: Context) {
             try {
                 val currentUser = authManager.getCurrentUser()
                 if (currentUser == null) {
-                    Log.w(TAG, "⚠️ Không có user đăng nhập, không thể xóa auto check")
+                    Log.w(TAG, "Không có user đăng nhập, không thể xóa auto check")
                     return@withContext
                 }
                 
@@ -74,17 +74,17 @@ class AutoCheckManager(context: Context) {
                 if (documentId != null) {
                     firebaseAutoCheckService.deleteAutoCheck(documentId).fold(
                         onSuccess = {
-                            Log.d(TAG, "✅ Đã xóa auto check: $documentId")
+                            Log.d(TAG, "Đã xóa auto check: $documentId")
                         },
                         onFailure = { error ->
-                            Log.e(TAG, "❌ Không thể xóa auto check: ${error.message}", error)
+                            Log.e(TAG, "Không thể xóa auto check: ${error.message}", error)
                         }
                     )
                 } else {
-                    Log.w(TAG, "⚠️ Không tìm thấy document ID để xóa auto check: $bienSo")
+                    Log.w(TAG, "Không tìm thấy document ID để xóa auto check: $bienSo")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Exception khi xóa auto check: ${e.message}", e)
+                Log.e(TAG, "Exception khi xóa auto check: ${e.message}", e)
             }
         }
     }

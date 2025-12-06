@@ -1,15 +1,12 @@
-package com.tuhoc.phatnguoi.utils
+package com.tuhoc.phatnguoi.security
 
 import org.mindrot.jbcrypt.BCrypt
-import android.util.Log
 
 /**
  * Utility class để hash và verify mật khẩu sử dụng BCrypt
  * BCrypt tự động tạo salt và có thể điều chỉnh cost factor
  */
 object PasswordHasher {
-    private const val TAG = "PasswordHasher"
-    
     /**
      * Hash mật khẩu với salt tự động
      * BCrypt sẽ tự động tạo salt và hash mật khẩu
@@ -19,11 +16,9 @@ object PasswordHasher {
      */
     fun hashPassword(password: String): String {
         return try {
-            // BCrypt.gensalt() tạo salt ngẫu nhiên và hash password
-            // Mỗi lần hash sẽ cho kết quả khác nhau do salt khác nhau
             BCrypt.hashpw(password, BCrypt.gensalt())
         } catch (e: Exception) {
-            Log.e(TAG, "Lỗi khi hash mật khẩu: ${e.message}", e)
+            SecureLogger.e("Lỗi khi hash mật khẩu", e)
             throw RuntimeException("Không thể hash mật khẩu", e)
         }
     }
@@ -40,7 +35,7 @@ object PasswordHasher {
             // BCrypt.checkpw sẽ extract salt từ hash và so sánh
             BCrypt.checkpw(password, hash)
         } catch (e: Exception) {
-            Log.e(TAG, "Lỗi khi verify mật khẩu: ${e.message}", e)
+            SecureLogger.e("Lỗi khi verify mật khẩu", e)
             false
         }
     }

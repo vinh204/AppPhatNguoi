@@ -1,7 +1,6 @@
 package com.tuhoc.phatnguoi.viewmodel
 
 import android.content.Context
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tuhoc.phatnguoi.data.local.AuthManager
@@ -9,7 +8,9 @@ import com.tuhoc.phatnguoi.data.remote.DataInfo
 import com.tuhoc.phatnguoi.data.remote.PhatNguoiRepository
 import com.tuhoc.phatnguoi.data.remote.PhatNguoiResult
 import com.tuhoc.phatnguoi.utils.AIFineCalculator
-import com.tuhoc.phatnguoi.utils.TraCuuRateLimiter
+import com.tuhoc.phatnguoi.security.InputValidator
+import com.tuhoc.phatnguoi.security.SecureLogger
+import com.tuhoc.phatnguoi.security.TraCuuRateLimiter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -48,7 +49,7 @@ class TraCuuViewModel(private val context: Context? = null) : ViewModel() {
     private val _state = MutableStateFlow<UiState>(UiState.Idle)
     val state: StateFlow<UiState> = _state
 
-    private val repository = PhatNguoiRepository()
+    private val repository = PhatNguoiRepository(context)
     private val fineCalculator = AIFineCalculator()
     
     // Rate limiter cho user chưa đăng nhập (3 lần/ngày)
@@ -68,35 +69,23 @@ class TraCuuViewModel(private val context: Context? = null) : ViewModel() {
         bienSoRaw: String,
         loaiXe: Int   // 1 = ô tô, 2 = xe máy, 3 = Xe đạp điện
     ) {
-        // Chuẩn hoá giống UI (upper + bỏ space)
-        val bienSo = bienSoRaw.uppercase().replace(" ", "")
-
-        // 1) Không nhập
-        if (bienSo.isBlank()) {
-            _state.value = UiState.Error("Hãy nhập biển số xe để tra cứu")
-            return
-        }
-
-        // 2) Có ký tự đặc biệt (không phải chữ hoặc số)
-        if (bienSo.any { !it.isLetterOrDigit() }) {
-            _state.value = UiState.Error("Biển số không được chứa ký tự đặc biệt, chỉ gồm chữ cái và số.")
-            return
-        }
-
-        // 3) Sai độ dài
-        if (bienSo.length !in 5..10) {
-            _state.value = UiState.Error("Vui lòng điền đúng định dạng biển số xe!")
+        // Normalize và validate biển số sử dụng InputValidator
+        val normalizedBienSo = InputValidator.normalizeBienSo(bienSoRaw)
+        val validationResult = InputValidator.validateBienSo(normalizedBienSo)
+        
+        if (validationResult is com.tuhoc.phatnguoi.security.InputValidator.ValidationResult.Error) {
+            _state.value = UiState.Error(validationResult.message)
             return
         }
 
         // Cancel coroutine cũ nếu đang chạy
         if (currentSearchJob != null) {
-            Log.d("TraCuuViewModel", "🛑 Hủy tra cứu cũ trước khi bắt đầu tra cứu mới: $bienSo")
+            SecureLogger.d("Hủy tra cứu cũ trước khi bắt đầu tra cứu mới")
             currentSearchJob?.cancel()
         }
         isSearchCancelled = false
         
-        Log.d("TraCuuViewModel", "▶️ Bắt đầu tra cứu: $bienSo, loại xe: $loaiXe")
+        SecureLogger.d("Bắt đầu tra cứu, loại xe: $loaiXe")
         _state.value = UiState.Loading
 
         // Lưu Job mới
@@ -107,24 +96,24 @@ class TraCuuViewModel(private val context: Context? = null) : ViewModel() {
                 if (!isLoggedIn) {
                     val rateLimitResult = traCuuRateLimiter.canTraCuu()
                     if (!rateLimitResult.canTraCuu) {
-                        Log.w("TraCuuViewModel", "🚫 Rate limit: ${rateLimitResult.message}")
+                        SecureLogger.w("Rate limit")
                         if (isActive) {
                             _state.value = UiState.Error(rateLimitResult.message ?: "Bạn đã tra cứu quá nhiều lần trong ngày")
                         }
                         return@launch
                     }
-                    Log.d("TraCuuViewModel", "✅ Còn ${rateLimitResult.remainingAttempts} lần tra cứu trong ngày")
+                    SecureLogger.d("Còn ${rateLimitResult.remainingAttempts} lần tra cứu trong ngày")
                 }
             }
             
             try {
-                Log.d("TraCuuViewModel", "⏳ Đang tra cứu: $bienSo")
-                // Retry tối đa 2 lần với backoff 0.8s -> 1.6s (chỉ retry lỗi network)
-                val result = retry(times = 2, initialDelayMs = 800L) {
+                SecureLogger.d("Đang tra cứu")
+                // Retry tối đa 1 lần với backoff 500ms (giảm từ 2 lần xuống 1 lần để nhanh hơn)
+                val result = retry(times = 1, initialDelayMs = 500L) {
                     // Kiểm tra cancelled trước khi thực hiện
                     ensureActive()
                     repository.checkPhatNguoi(
-                        plate = bienSo,
+                        plate = normalizedBienSo,
                         vehicleType = loaiXe
                     )
                 }
@@ -132,7 +121,7 @@ class TraCuuViewModel(private val context: Context? = null) : ViewModel() {
                 // Kiểm tra cancelled trước khi xử lý kết quả
                 ensureActive()
 
-                Log.d("TraCuuViewModel", "✅ Tra cứu hoàn thành: $bienSo, có vi phạm: ${result.viPham}")
+                SecureLogger.d("Tra cứu hoàn thành, có vi phạm: ${result.viPham}")
 
                 // Xử lý kết quả từ Repository
                 when {
@@ -166,7 +155,7 @@ class TraCuuViewModel(private val context: Context? = null) : ViewModel() {
                         val pairs = if (result.allViolations.isNotEmpty()) {
                             // Map tất cả vi phạm
                             val mappedPairs = mapAllViolationsToPairs(result.allViolations)
-                            Log.d("PhatNguoi", "Số pairs sau khi map: ${mappedPairs.size}")
+                            SecureLogger.d("Số pairs sau khi map: ${mappedPairs.size}")
                             mappedPairs
                         } else {
                             // Fallback: map vi phạm đầu tiên (backward compatibility)
@@ -212,13 +201,13 @@ class TraCuuViewModel(private val context: Context? = null) : ViewModel() {
                             
                             // Kiểm tra cancelled trước khi update state cuối cùng
                             if (isActive) {
-                                Log.d("TraCuuViewModel", "✅ Cập nhật state Success: $bienSo, số lỗi: ${info.total}")
+                                SecureLogger.d("Cập nhật state Success, số lỗi: ${info.total}")
                                 _state.value = UiState.Success(pairs, info, violationsForCalculation)
                                 
                                 // ✅ Ghi nhận tra cứu thành công (chỉ cho user chưa đăng nhập)
                                 recordTraCuuIfNeeded()
                             } else {
-                                Log.w("TraCuuViewModel", "⚠️ Tra cứu đã bị cancel, không cập nhật state: $bienSo")
+                                SecureLogger.w("Tra cứu đã bị cancel, không cập nhật state")
                             }
                         }
                     }
@@ -226,15 +215,15 @@ class TraCuuViewModel(private val context: Context? = null) : ViewModel() {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 // Bỏ qua CancellationException - đây là expected khi cancel
                 isSearchCancelled = true
-                Log.d("TraCuuViewModel", "🛑 Tra cứu đã bị hủy: $bienSo")
+                SecureLogger.d("Tra cứu đã bị hủy")
                 throw e // Re-throw để coroutine được cancel đúng cách
             } catch (e: Exception) {
-                Log.e("TraCuuViewModel", "❌ Tra cứu lỗi: $bienSo", e)
+                SecureLogger.e("Tra cứu lỗi", e)
                 // Chỉ update state nếu không bị cancel
                 if (isActive) {
                     _state.value = UiState.Error(mapError(e))
                 } else {
-                    Log.w("TraCuuViewModel", "⚠️ Tra cứu lỗi nhưng đã bị cancel, không cập nhật state: $bienSo")
+                    SecureLogger.w("Tra cứu lỗi nhưng đã bị cancel, không cập nhật state")
                 }
             }
         }
@@ -245,7 +234,7 @@ class TraCuuViewModel(private val context: Context? = null) : ViewModel() {
         // Cancel coroutine đang chạy khi reset
         val wasLoading = _state.value is UiState.Loading
         if (currentSearchJob != null) {
-            Log.d("TraCuuViewModel", "🛑 Reset: Hủy tra cứu đang chạy")
+            SecureLogger.d("Reset: Hủy tra cứu đang chạy")
             currentSearchJob?.cancel()
         }
         currentSearchJob = null
@@ -254,10 +243,10 @@ class TraCuuViewModel(private val context: Context? = null) : ViewModel() {
         // Nếu đã Success/Error thì không set, vì tra cứu đã hoàn thành rồi
         if (wasLoading) {
             isSearchCancelled = true
-            Log.d("TraCuuViewModel", "🔄 Reset: Tra cứu đang chạy bị hủy, isSearchCancelled = true")
+            SecureLogger.d("Reset: Tra cứu đang chạy bị hủy, isSearchCancelled = true")
         } else {
             isSearchCancelled = false
-            Log.d("TraCuuViewModel", "🔄 Reset: Tra cứu đã hoàn thành, isSearchCancelled = false (cho phép lưu lịch sử)")
+            SecureLogger.d("Reset: Tra cứu đã hoàn thành, isSearchCancelled = false (cho phép lưu lịch sử)")
         }
         
         _state.value = UiState.Idle
@@ -275,12 +264,12 @@ class TraCuuViewModel(private val context: Context? = null) : ViewModel() {
      */
     fun cancelSearch() {
         if (currentSearchJob != null) {
-            Log.d("TraCuuViewModel", "🛑 Cancel search: Hủy tra cứu đang chạy")
+            SecureLogger.d("Cancel search: Hủy tra cứu đang chạy")
             currentSearchJob?.cancel()
         }
         currentSearchJob = null
         isSearchCancelled = true
-        Log.d("TraCuuViewModel", "🛑 Cancel search: isSearchCancelled = true")
+        SecureLogger.d("Cancel search: isSearchCancelled = true")
     }
     
     /**
@@ -292,7 +281,7 @@ class TraCuuViewModel(private val context: Context? = null) : ViewModel() {
                 val isLoggedIn = authManager.isLoggedIn()
                 if (!isLoggedIn) {
                     traCuuRateLimiter.recordTraCuu()
-                    Log.d("TraCuuViewModel", "📝 Đã ghi nhận tra cứu cho user chưa đăng nhập")
+                    SecureLogger.d("Đã ghi nhận tra cứu cho user chưa đăng nhập")
                 }
             }
         }

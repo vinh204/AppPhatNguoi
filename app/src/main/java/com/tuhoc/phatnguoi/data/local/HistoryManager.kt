@@ -50,12 +50,12 @@ class HistoryManager(context: Context) {
             try {
                 val currentUser = authManager.getCurrentUser()
                 if (currentUser == null) {
-                    Log.w(TAG, "⚠️ Không có user đăng nhập, không thể lưu lịch sử")
+                    Log.w(TAG, "Không có user đăng nhập, không thể lưu lịch sử")
                     return@withContext
                 }
                 
                 val phoneNumber = currentUser.phoneNumber
-                Log.d(TAG, "💾 Đang lưu lịch sử: bienSo=${item.bienSo}, loaiXe=${item.loaiXe}, userId=$phoneNumber")
+                Log.d(TAG, "Đang lưu lịch sử: bienSo=${item.bienSo}, loaiXe=${item.loaiXe}, userId=$phoneNumber")
                 
                 // Lưu vào Firestore
                 firebaseHistoryService.saveHistory(
@@ -66,14 +66,14 @@ class HistoryManager(context: Context) {
                     soLoi = item.soLoi
                 ).fold(
                     onSuccess = { historyId ->
-                        Log.d(TAG, "✅ Đã lưu lịch sử lên Firestore: $historyId")
+                        Log.d(TAG, "Đã lưu lịch sử lên Firestore: $historyId")
                     },
                     onFailure = { error ->
-                        Log.e(TAG, "❌ Không thể lưu lịch sử lên Firestore: ${error.message}", error)
+                        Log.e(TAG, "Không thể lưu lịch sử lên Firestore: ${error.message}", error)
                     }
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Exception khi lưu lịch sử: ${e.message}", e)
+                Log.e(TAG, "Exception khi lưu lịch sử: ${e.message}", e)
             }
         }
     }
@@ -86,38 +86,38 @@ class HistoryManager(context: Context) {
             try {
                 val currentUser = authManager.getCurrentUser()
                 if (currentUser == null) {
-                    Log.w(TAG, "⚠️ Không có user đăng nhập, không thể lấy lịch sử")
+                    Log.w(TAG, "Không có user đăng nhập, không thể lấy lịch sử")
                     return@withContext emptyList()
                 }
                 
                 val phoneNumber = currentUser.phoneNumber
-                Log.d(TAG, "🔍 Đang lấy lịch sử cho user: $phoneNumber")
+                Log.d(TAG, "Đang lấy lịch sử cho user: $phoneNumber")
                 
                 val result = firebaseHistoryService.getHistoryByUser(phoneNumber, limit = 100)
                 
                 result.fold(
                     onSuccess = { historyList ->
-                        Log.d(TAG, "✅ Lấy được ${historyList.size} lịch sử từ Firestore")
+                        Log.d(TAG, "Lấy được ${historyList.size} lịch sử từ Firestore")
                         val items = historyList.mapIndexed { index, data ->
                             try {
                                 // Lấy document ID từ data (đã được thêm vào trong FirebaseRepository)
                                 val documentId = data["_documentId"] as? String
                                 TraCuuHistoryItem.fromMap(data, documentId = documentId)
                             } catch (e: Exception) {
-                                Log.e(TAG, "❌ Lỗi khi convert history item: ${e.message}", e)
+                                Log.e(TAG, "Lỗi khi convert history item: ${e.message}", e)
                                 null
                             }
                         }.filterNotNull()
-                        Log.d(TAG, "✅ Convert thành công ${items.size} items")
+                        Log.d(TAG, "Convert thành công ${items.size} items")
                         items
                     },
                     onFailure = { error ->
-                        Log.e(TAG, "❌ Lỗi khi lấy lịch sử từ Firestore: ${error.message}", error)
+                        Log.e(TAG, "Lỗi khi lấy lịch sử từ Firestore: ${error.message}", error)
                         emptyList()
                     }
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Exception khi lấy lịch sử: ${e.message}", e)
+                Log.e(TAG, "Exception khi lấy lịch sử: ${e.message}", e)
                 emptyList()
             }
         }
@@ -130,10 +130,10 @@ class HistoryManager(context: Context) {
         withContext(Dispatchers.IO) {
             firebaseHistoryService.deleteHistory(documentId).fold(
                 onSuccess = {
-                    Log.d(TAG, "✅ Đã xóa lịch sử: $documentId")
+                    Log.d(TAG, "Đã xóa lịch sử: $documentId")
                 },
                 onFailure = { error ->
-                    Log.w(TAG, "⚠️ Không thể xóa lịch sử: ${error.message}")
+                    Log.w(TAG, "Không thể xóa lịch sử: ${error.message}")
                 }
             )
         }

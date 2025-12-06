@@ -31,6 +31,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tuhoc.phatnguoi.data.local.AuthManager
 import com.tuhoc.phatnguoi.data.remote.OtpService
+import com.tuhoc.phatnguoi.security.PinStrengthChecker
+import com.tuhoc.phatnguoi.ui.login.PinStrengthMessages
+import com.tuhoc.phatnguoi.ui.login.checkPinStrengthRealTime
+import com.tuhoc.phatnguoi.ui.login.validatePinOnSubmit
+import com.tuhoc.phatnguoi.security.InputValidator
 import com.tuhoc.phatnguoi.ui.theme.RedPrimary
 import com.tuhoc.phatnguoi.ui.theme.TextPrimary
 import com.tuhoc.phatnguoi.ui.theme.TextSub
@@ -44,33 +49,7 @@ private const val MIN_PHONE_LENGTH = 10
 private const val MAX_PHONE_LENGTH = 11
 private const val FOCUS_DELAY_MS = 100L
 
-/**
- * Validation functions
- */
-private fun validatePhoneNumber(phone: String): String? {
-    return when {
-        phone.isEmpty() -> "Vui lòng nhập số điện thoại"
-        phone.length !in MIN_PHONE_LENGTH..MAX_PHONE_LENGTH -> "Số điện thoại không hợp lệ"
-        !phone.startsWith("0") -> "Số điện thoại phải bắt đầu bằng số 0"
-        else -> null
-    }
-}
-
-private fun validatePassword(password: String): String? {
-    return if (password.length != PIN_LENGTH) {
-        "Mật khẩu phải có $PIN_LENGTH số"
-    } else {
-        null
-    }
-}
-
-private fun validateConfirmPassword(password: String, confirmPassword: String): String? {
-    return if (password != confirmPassword) {
-        "Mật khẩu xác nhận không khớp"
-    } else {
-        null
-    }
-}
+// Validation sử dụng InputValidator trực tiếp cho toàn bộ hệ thống
 
 @Composable
 fun ForgotPasswordScreen(
@@ -96,6 +75,8 @@ fun ForgotPasswordScreen(
     var isLoading by remember { mutableStateOf(false) }
     var isOtpSent by remember { mutableStateOf(false) }
     var countdown by remember { mutableStateOf(0) }
+    var pinStrengthWarning by remember { mutableStateOf<String?>(null) } // Cảnh báo PIN yếu
+    var pinStrengthError by remember { mutableStateOf<String?>(null) } // Lỗi PIN không hợp lệ
     
     // State cho OTP rate limiting
     var otpRateLimitMessage by remember { mutableStateOf<String?>(null) }
@@ -406,12 +387,23 @@ fun ForgotPasswordScreen(
                             onValueChange = {
                                 password = it
                                 clearError()
+                                
+                                // Kiểm tra PIN strength khi đủ 6 chữ số
+                                val (warning, error) = checkPinStrengthRealTime(it, phoneNumber, PIN_LENGTH)
+                                pinStrengthWarning = warning
+                                pinStrengthError = error
                             },
                             label = "Nhập mật khẩu mới",
                             placeholder = "Nhập mật khẩu mới",
                             enabled = !isLoading,
                             modifier = Modifier.fillMaxWidth(),
                             focusRequester = passwordFocusRequester
+                        )
+                        
+                        // Hiển thị cảnh báo/lỗi PIN strength
+                        PinStrengthMessages(
+                            warning = pinStrengthWarning,
+                            error = pinStrengthError
                         )
 
                         Spacer(Modifier.height(16.dp))
@@ -470,19 +462,31 @@ fun ForgotPasswordScreen(
 
                                     3 -> {
                                         // Bước 3: Đặt lại mật khẩu
-                                        val passwordError = validatePassword(password)
-                                        val confirmError =
-                                            validateConfirmPassword(password, confirmPassword)
+                                        val passwordValidationResult = InputValidator.validatePassword(password)
+                                        val passwordError = if (passwordValidationResult.isError()) passwordValidationResult.getErrorMessage() else null
+                                        val confirmValidationResult = InputValidator.validateConfirmPassword(password, confirmPassword)
+                                        val confirmError = if (confirmValidationResult.isError()) confirmValidationResult.getErrorMessage() else null
+                                        val pinError = validatePinOnSubmit(password, phoneNumber, PIN_LENGTH)
+                                        
                                         when {
                                             passwordError != null -> errorMessage = passwordError
                                             confirmError != null -> errorMessage = confirmError
+                                            pinError != null -> {
+                                                errorMessage = pinError
+                                                pinStrengthError = pinError
+                                            }
                                             else -> {
                                                 clearError()
+                                                pinStrengthError = null
                                                 isLoading = true
                                                 scope.launch {
-                                                    authManager.resetPassword(phoneNumber, password)
+                                                    val result = authManager.resetPassword(phoneNumber, password)
+                                                    result.onSuccess {
+                                                        onSuccess()
+                                                    }.onFailure { exception ->
+                                                        errorMessage = exception.message ?: "Không thể đặt lại mật khẩu"
                                                     isLoading = false
-                                                    onSuccess()
+                                                    }
                                                 }
                                             }
                                         }

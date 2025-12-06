@@ -29,6 +29,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tuhoc.phatnguoi.data.local.AuthManager
+import com.tuhoc.phatnguoi.security.PinStrengthChecker
+import com.tuhoc.phatnguoi.ui.login.PinStrengthMessages
+import com.tuhoc.phatnguoi.ui.login.checkPinStrengthRealTime
+import com.tuhoc.phatnguoi.ui.login.validatePinOnSubmit
+import com.tuhoc.phatnguoi.security.InputValidator
 import com.tuhoc.phatnguoi.ui.theme.RedPrimary
 import com.tuhoc.phatnguoi.ui.theme.TextPrimary
 import com.tuhoc.phatnguoi.ui.theme.TextSub
@@ -39,24 +44,7 @@ import kotlinx.coroutines.launch
 private const val PIN_LENGTH = 6
 private const val FOCUS_DELAY_MS = 100L
 
-/**
- * Validation functions
- */
-private fun validatePassword(password: String): String? {
-    return if (password.length != PIN_LENGTH) {
-        "Mật khẩu phải có $PIN_LENGTH số"
-    } else {
-        null
-    }
-}
-
-private fun validateConfirmPassword(password: String, confirmPassword: String): String? {
-    return if (password != confirmPassword) {
-        "Mật khẩu xác nhận không khớp"
-    } else {
-        null
-    }
-}
+// Validation sử dụng InputValidator trực tiếp cho toàn bộ hệ thống
 
 @Composable
 fun ChangePasswordScreen(
@@ -76,6 +64,8 @@ fun ChangePasswordScreen(
     var isLoading by remember { mutableStateOf(false) }
     var currentStep by remember { mutableStateOf(1) } // 1 = mật khẩu cũ, 2 = mật khẩu mới, 3 = xác nhận
     var phoneNumber by remember { mutableStateOf("") }
+    var pinStrengthWarning by remember { mutableStateOf<String?>(null) } // Cảnh báo PIN yếu
+    var pinStrengthError by remember { mutableStateOf<String?>(null) } // Lỗi PIN không hợp lệ
     
     // Focus requesters
     val currentPasswordFocusRequester = remember { FocusRequester() }
@@ -269,12 +259,23 @@ fun ChangePasswordScreen(
                                 onValueChange = {
                                     newPassword = it
                                     clearError()
+                                    
+                                    // Kiểm tra PIN strength khi đủ 6 chữ số
+                                    val (warning, error) = checkPinStrengthRealTime(it, phoneNumber, PIN_LENGTH)
+                                    pinStrengthWarning = warning
+                                    pinStrengthError = error
                                 },
                                 label = "Nhập mật khẩu mới",
                                 placeholder = "Nhập mật khẩu mới",
                                 enabled = !isLoading,
                                 modifier = Modifier.fillMaxWidth(),
                                 focusRequester = newPasswordFocusRequester
+                            )
+                            
+                            // Hiển thị cảnh báo/lỗi PIN strength
+                            PinStrengthMessages(
+                                warning = pinStrengthWarning,
+                                error = pinStrengthError
                             )
                             
                             PasswordTextFieldWithDots(
@@ -331,26 +332,39 @@ fun ChangePasswordScreen(
 
                                 2 -> {
                                     // Xác nhận và đổi mật khẩu
-                                    val passwordError = validatePassword(newPassword)
-                                    val confirmError =
-                                        validateConfirmPassword(newPassword, confirmPassword)
+                                    val passwordValidationResult = InputValidator.validatePassword(newPassword)
+                                    val passwordError = if (passwordValidationResult.isError()) passwordValidationResult.getErrorMessage() else null
+                                    val confirmValidationResult = InputValidator.validateConfirmPassword(newPassword, confirmPassword)
+                                    val confirmError = if (confirmValidationResult.isError()) confirmValidationResult.getErrorMessage() else null
+                                    val pinError = validatePinOnSubmit(newPassword, phoneNumber, PIN_LENGTH)
+                                    
                                     when {
                                         passwordError != null -> errorMessage = passwordError
                                         confirmError != null -> errorMessage = confirmError
                                         newPassword == currentPassword -> {
                                             errorMessage = "Mật khẩu mới phải khác mật khẩu cũ"
                                         }
+                                        pinError != null -> {
+                                            errorMessage = pinError
+                                            pinStrengthError = pinError
+                                        }
                                         else -> {
                                             clearError()
+                                            pinStrengthError = null
                                             isLoading = true
                                             scope.launch {
                                                 val user = authManager.getCurrentUser()
                                                 if (user != null) {
-                                                    authManager.updatePassword(
+                                                    val result = authManager.updatePassword(
                                                         user.phoneNumber,
                                                         newPassword
                                                     )
+                                                    result.onSuccess {
                                                     onSuccess()
+                                                    }.onFailure { exception ->
+                                                        errorMessage = exception.message ?: "Không thể đổi mật khẩu"
+                                                        isLoading = false
+                                                    }
                                                 } else {
                                                     errorMessage =
                                                         "Không tìm thấy thông tin người dùng"

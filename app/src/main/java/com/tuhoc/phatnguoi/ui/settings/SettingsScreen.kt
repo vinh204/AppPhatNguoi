@@ -104,6 +104,10 @@ fun SettingsScreen(
                         title = "Đổi mật khẩu",
                         icon = Icons.Default.Lock
                     ),
+                    SettingItem(
+                        title = "Cài đặt thông báo",
+                        icon = Icons.Default.Notifications
+                    ),
                     SettingItem("Đăng xuất", Icons.Default.Logout)
                 ),
                 onItemClick = { title ->
@@ -113,6 +117,9 @@ fun SettingsScreen(
                         }
                         "Đổi mật khẩu" -> {
                             onItemClick("Đổi mật khẩu")
+                        }
+                        "Cài đặt thông báo" -> {
+                            onItemClick("Cài đặt thông báo")
                         }
                         else -> {
                         onItemClick(title)
@@ -142,7 +149,6 @@ fun SettingsScreen(
             items = listOf(
                 SettingItem("Câu hỏi thường gặp", Icons.Default.Help),
                 SettingItem("Nộp phạt trực tuyến", Icons.Default.Payment),
-                SettingItem("Cài đặt thông báo", Icons.Default.Notifications),
                 SettingItem("Liên hệ", Icons.Default.Email),
                 SettingItem("Đánh giá ứng dụng", Icons.Default.Star),
                 SettingItem("Chia sẻ ứng dụng", Icons.Default.Share),

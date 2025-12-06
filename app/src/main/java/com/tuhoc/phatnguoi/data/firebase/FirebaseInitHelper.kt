@@ -22,11 +22,11 @@ object FirebaseInitHelper {
         CoroutineScope(Dispatchers.IO).launch {
             databaseService.initializeDatabase().fold(
                 onSuccess = {
-                    Log.d(TAG, "✅ Khởi tạo Firebase database thành công!")
+                    Log.d(TAG, "Khởi tạo Firebase database thành công!")
                     onComplete(true, null)
                 },
                 onFailure = { error ->
-                    Log.e(TAG, "❌ Lỗi khi khởi tạo database: ${error.message}", error)
+                    Log.e(TAG, "Lỗi khi khởi tạo database: ${error.message}", error)
                     onComplete(false, error.message)
                 }
             )

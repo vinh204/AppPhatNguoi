@@ -25,7 +25,7 @@ class FirebaseHistoryService {
         soLoi: Int? = null
     ): Result<String> {
         return try {
-            Log.d(TAG, "💾 Đang lưu/cập nhật lịch sử: bienSo=$bienSo, userId=$userId")
+            Log.d(TAG, "Đang lưu/cập nhật lịch sử: bienSo=$bienSo, userId=$userId")
             
             val snapshot = db.collection("history")
                 .whereEqualTo("userId", userId)
@@ -46,25 +46,25 @@ class FirebaseHistoryService {
             
             if (snapshot.documents.isNotEmpty()) {
                 val documentId = snapshot.documents[0].id
-                Log.d(TAG, "🔄 Cập nhật lịch sử cũ: documentId=$documentId")
+                Log.d(TAG, "Cập nhật lịch sử cũ: documentId=$documentId")
                 
                 repository.updateDocument("history", documentId, data).fold(
                     onSuccess = { 
-                        Log.d(TAG, "✅ Đã cập nhật lịch sử: $documentId")
+                        Log.d(TAG, "Đã cập nhật lịch sử: $documentId")
                         Result.success(documentId) 
                     },
                     onFailure = { error ->
-                        Log.e(TAG, "❌ Lỗi khi cập nhật: ${error.message}", error)
+                        Log.e(TAG, "Lỗi khi cập nhật: ${error.message}", error)
                         Result.failure(error)
                     }
                 )
             } else {
-                Log.d(TAG, "➕ Tạo lịch sử mới")
+                Log.d(TAG, "Tạo lịch sử mới")
                 val newData = data + ("createdAt" to Timestamp.now())
                 repository.saveDocument("history", newData)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Exception khi lưu lịch sử: ${e.message}", e)
+            Log.e(TAG, "Exception khi lưu lịch sử: ${e.message}", e)
             Result.failure(e)
         }
     }

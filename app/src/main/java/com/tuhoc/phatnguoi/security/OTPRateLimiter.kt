@@ -1,8 +1,8 @@
-package com.tuhoc.phatnguoi.utils
+package com.tuhoc.phatnguoi.security
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log
+import com.tuhoc.phatnguoi.security.EncryptedPreferencesHelper
 import java.util.concurrent.TimeUnit
 
 /**
@@ -15,8 +15,6 @@ class OTPRateLimiter(private val context: Context) {
         context,
         "otp_rate_limiter"
     )
-    
-    private val TAG = "OTPRateLimiter"
     
     companion object {
         private const val MAX_ATTEMPTS_10_MIN = 3
@@ -43,7 +41,7 @@ class OTPRateLimiter(private val context: Context) {
         val lockoutUntil = prefs.getLong(KEY_LOCKOUT_UNTIL + key, 0)
         if (currentTime < lockoutUntil) {
             val remainingSeconds = TimeUnit.MILLISECONDS.toSeconds(lockoutUntil - currentTime)
-            Log.w(TAG, "OTP bị lockout cho $phoneNumber, còn lại $remainingSeconds giây")
+            SecureLogger.w("OTP bị lockout, còn lại $remainingSeconds giây")
             return OTPRateLimitResult(
                 canSend = false,
                 remainingSeconds = remainingSeconds.toInt(),
@@ -96,7 +94,7 @@ class OTPRateLimiter(private val context: Context) {
         val lockoutUntil = currentTime + TimeUnit.MINUTES.toMillis(LOCKOUT_MINUTES)
         prefs.edit().putLong(KEY_LOCKOUT_UNTIL + key, lockoutUntil).apply()
         
-        Log.w(TAG, "OTP lockout cho $key trong ${LOCKOUT_MINUTES} phút")
+        SecureLogger.w("OTP lockout trong ${LOCKOUT_MINUTES} phút")
         
         return OTPRateLimitResult(
             canSend = false,
@@ -115,7 +113,7 @@ class OTPRateLimiter(private val context: Context) {
         incrementAttempts(key, currentTime, TIME_WINDOW_1_HOUR, KEY_ATTEMPTS_1_HOUR, KEY_TIMESTAMP_1_HOUR)
         incrementAttempts(key, currentTime, TIME_WINDOW_24_HOURS, KEY_ATTEMPTS_24_HOURS, KEY_TIMESTAMP_24_HOURS)
         
-        Log.d(TAG, "Đã ghi nhận gửi OTP cho $phoneNumber")
+        SecureLogger.d("Đã ghi nhận gửi OTP")
     }
     
     private fun incrementAttempts(
@@ -165,3 +163,4 @@ data class OTPRateLimitResult(
     val remainingSeconds: Int,
     val message: String?
 )
+

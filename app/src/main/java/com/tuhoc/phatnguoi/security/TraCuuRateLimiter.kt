@@ -1,8 +1,8 @@
-package com.tuhoc.phatnguoi.utils
+package com.tuhoc.phatnguoi.security
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log
+import com.tuhoc.phatnguoi.security.EncryptedPreferencesHelper
 import java.util.concurrent.TimeUnit
 
 /**
@@ -17,8 +17,6 @@ class TraCuuRateLimiter(private val context: Context) {
         context,
         "tra_cuu_rate_limiter"
     )
-    
-    private val TAG = "TraCuuRateLimiter"
     
     companion object {
         private const val MAX_ATTEMPTS_24_HOURS = 3
@@ -91,7 +89,7 @@ class TraCuuRateLimiter(private val context: Context) {
             .putLong(KEY_TIMESTAMP_24_HOURS + key, firstAttemptTime)
             .apply()
         
-        Log.d(TAG, "Đã ghi nhận tra cứu: $attempts/$MAX_ATTEMPTS_24_HOURS lần trong 24 giờ")
+        SecureLogger.d("Đã ghi nhận tra cứu: $attempts/$MAX_ATTEMPTS_24_HOURS lần trong 24 giờ")
     }
     
     /**
@@ -110,7 +108,7 @@ class TraCuuRateLimiter(private val context: Context) {
             .remove(KEY_ATTEMPTS_24_HOURS + key)
             .remove(KEY_TIMESTAMP_24_HOURS + key)
             .apply()
-        Log.d(TAG, "Đã reset rate limiter cho tra cứu")
+        SecureLogger.d("Đã reset rate limiter cho tra cứu")
     }
 }
 

@@ -1,27 +1,13 @@
 package com.tuhoc.phatnguoi.utils
 
-import android.util.Log
-import com.tuhoc.phatnguoi.BuildConfig
 import org.json.JSONArray
 import org.json.JSONObject
+import com.tuhoc.phatnguoi.security.SecureLogger
 
 /**
  * Parser cho JSON response từ AI
  */
 object JsonResponseParser {
-    private const val TAG = "JsonResponseParser"
-    
-    private fun logD(message: String) {
-        if (BuildConfig.DEBUG) Log.d(TAG, message)
-    }
-    
-    private fun logE(message: String, throwable: Throwable? = null) {
-        if (throwable != null) {
-            Log.e(TAG, message, throwable)
-        } else {
-            Log.e(TAG, message)
-        }
-    }
     
     /**
      * Parse JSON response từ AI
@@ -45,7 +31,7 @@ object JsonResponseParser {
                 val jsonEnd = responseText.lastIndexOf('}') + 1
                 
                 if (jsonStart < 0 || jsonEnd <= jsonStart) {
-                    logE("Không tìm thấy JSON trong response")
+                    SecureLogger.e("Không tìm thấy JSON trong response")
                     return null
                 }
                 
@@ -53,7 +39,7 @@ object JsonResponseParser {
             }
             
             if (jsonString.isBlank()) {
-                logE("JSON string rỗng")
+                SecureLogger.e("JSON string rỗng")
                 return null
             }
             
@@ -104,7 +90,7 @@ object JsonResponseParser {
             
             return FineAnalysisResult(totalFineRange, violations.take(expectedViolationCount))
         } catch (e: Exception) {
-            logE("Lỗi khi parse JSON response", e)
+            SecureLogger.e("Lỗi khi parse JSON response", e)
             return null
         }
     }

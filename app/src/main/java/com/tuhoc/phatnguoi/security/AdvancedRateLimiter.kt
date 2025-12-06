@@ -1,9 +1,8 @@
-package com.tuhoc.phatnguoi.utils
+package com.tuhoc.phatnguoi.security
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log
-import com.tuhoc.phatnguoi.utils.EncryptedPreferencesHelper
+import com.tuhoc.phatnguoi.security.EncryptedPreferencesHelper
 import java.util.concurrent.TimeUnit
 
 /**
@@ -14,9 +13,11 @@ import java.util.concurrent.TimeUnit
  * Cấp 3: Nếu vẫn sai → khóa 60 phút
  * 
  * Reset 2 tầng:
- * ✅ Tầng 1: 30 phút không thử → reset small-fail-count (Level 1 attempts)
- *    - small-fail-count = số lần sai liên tiếp trong 1 session / một thời gian ngắn
- *    - Tạo cảm giác "phiên đăng nhập mới" cho user
+ * ✅ Tầng 1: 30 phút không thử → reset số lần thử về 0 (giữ nguyên Level hiện tại)
+ *    - Chỉ reset attempts và timestamp, KHÔNG reset lockout_until
+ *    - Giữ lại thông tin về Level hiện tại (đã từng bị lockout Level 1 hay chưa)
+ *    - Nếu đang ở Level 2, sau reset 30 phút vẫn ở Level 2
+ *    - Nếu sai 3 lần tiếp → khóa ở Level hiện tại (Level 1: 60s, Level 2: 5 phút)
  * 🔥 Tầng 2: 24 giờ không thử → reset toàn bộ thống kê (tất cả levels)
  * 
  * Sử dụng EncryptedSharedPreferences để mã hóa dữ liệu rate limiting
@@ -26,8 +27,6 @@ class AdvancedRateLimiter(private val context: Context) {
         context,
         "advanced_rate_limiter"
     )
-    
-    private val TAG = "AdvancedRateLimiter"
     
     companion object {
         // Cấp 1: 3 lần sai trong 5 phút → khóa 60 giây
@@ -76,7 +75,7 @@ class AdvancedRateLimiter(private val context: Context) {
         val level3LockoutUntil = prefs.getLong(KEY_LEVEL3_LOCKOUT_UNTIL + key, 0)
         if (currentTime < level3LockoutUntil) {
             val remainingSeconds = TimeUnit.MILLISECONDS.toSeconds(level3LockoutUntil - currentTime)
-            Log.w(TAG, "Level 3 lockout cho $key, còn lại $remainingSeconds giây")
+            SecureLogger.w("Level 3 lockout, còn lại $remainingSeconds giây")
             return RateLimitResult(
                 canProceed = false,
                 level = 3,
@@ -89,7 +88,7 @@ class AdvancedRateLimiter(private val context: Context) {
         val level2LockoutUntil = prefs.getLong(KEY_LEVEL2_LOCKOUT_UNTIL + key, 0)
         if (currentTime < level2LockoutUntil) {
             val remainingSeconds = TimeUnit.MILLISECONDS.toSeconds(level2LockoutUntil - currentTime)
-            Log.w(TAG, "Level 2 lockout cho $key, còn lại $remainingSeconds giây")
+            SecureLogger.w("Level 2 lockout, còn lại $remainingSeconds giây")
             return RateLimitResult(
                 canProceed = false,
                 level = 2,
@@ -102,7 +101,7 @@ class AdvancedRateLimiter(private val context: Context) {
         val level1LockoutUntil = prefs.getLong(KEY_LEVEL1_LOCKOUT_UNTIL + key, 0)
         if (currentTime < level1LockoutUntil) {
             val remainingSeconds = TimeUnit.MILLISECONDS.toSeconds(level1LockoutUntil - currentTime)
-            Log.w(TAG, "Level 1 lockout cho $key, còn lại $remainingSeconds giây")
+            SecureLogger.w("Level 1 lockout, còn lại $remainingSeconds giây")
             return RateLimitResult(
                 canProceed = false,
                 level = 1,
@@ -167,7 +166,7 @@ class AdvancedRateLimiter(private val context: Context) {
      * Reset rate limiter khi đăng nhập thành công
      */
     fun reset(key: String) {
-        Log.d(TAG, "Reset rate limiter cho $key")
+        SecureLogger.d("Reset rate limiter")
         prefs.edit()
             .remove(KEY_LEVEL1_ATTEMPTS + key)
             .remove(KEY_LEVEL1_TIMESTAMP + key)
@@ -210,7 +209,7 @@ class AdvancedRateLimiter(private val context: Context) {
                 .putLong(timestampKey, 0)
                 .apply()
             
-            Log.w(TAG, "Level 1 lockout cho $key trong ${LEVEL1_LOCKOUT_SECONDS} giây")
+            SecureLogger.w("Level 1 lockout trong ${LEVEL1_LOCKOUT_SECONDS} giây")
         }
     }
     
@@ -248,7 +247,7 @@ class AdvancedRateLimiter(private val context: Context) {
                     .putLong(level2TimestampKey, 0)
                     .apply()
                 
-                Log.w(TAG, "Level 2 lockout cho $key trong ${LEVEL2_LOCKOUT_MINUTES} phút")
+                SecureLogger.w("Level 2 lockout trong ${LEVEL2_LOCKOUT_MINUTES} phút")
             }
         }
     }
@@ -273,7 +272,7 @@ class AdvancedRateLimiter(private val context: Context) {
                     .putLong(KEY_LEVEL2_LOCKOUT_UNTIL + key, 0)
                     .apply()
                 
-                Log.w(TAG, "Level 3 lockout cho $key trong ${LEVEL3_LOCKOUT_MINUTES} phút")
+                SecureLogger.w("Level 3 lockout trong ${LEVEL3_LOCKOUT_MINUTES} phút")
             }
         }
     }
@@ -281,7 +280,10 @@ class AdvancedRateLimiter(private val context: Context) {
     /**
      * Kiểm tra và reset nếu cần
      * 
-     * Tầng 1: 30 phút không thử → reset small-fail-count (Level 1 attempts)
+     * Tầng 1: 30 phút không thử → reset số lần thử về 0 (giữ nguyên Level hiện tại)
+     *    - Chỉ reset attempts và timestamp, KHÔNG reset lockout_until
+     *    - Điều này giữ lại thông tin về Level hiện tại (đã từng bị lockout Level 1 hay chưa)
+     *    - Nếu đang ở Level 2, sau reset vẫn ở Level 2
      * Tầng 2: 24 giờ không thử → reset toàn bộ thống kê (tất cả levels)
      */
     private fun checkAndResetIfNeeded(key: String, currentTime: Long) {
@@ -293,34 +295,36 @@ class AdvancedRateLimiter(private val context: Context) {
         
         // 🔥 Tầng 2: Reset toàn bộ sau 24 giờ không thử
         if (timeSinceLastAttempt > TimeUnit.HOURS.toMillis(RESET_ALL_HOURS)) {
-            Log.d(TAG, "🔥 Tầng 2: Reset toàn bộ cho $key (24 giờ không thử)")
+            SecureLogger.d("Tầng 2: Reset toàn bộ (24 giờ không thử)")
             reset(key)
             return
         }
         
-        // ✅ Tầng 1: Reset small-fail-count sau 30 phút không thử
-        // small-fail-count = số lần sai liên tiếp trong 1 session / một thời gian ngắn
-        // Tạo cảm giác "phiên đăng nhập mới" cho user
+        // ✅ Tầng 1: Reset số lần thử về 0 sau 30 phút không thử (giữ nguyên Level)
+        // Chỉ reset attempts và timestamp, KHÔNG reset lockout_until
+        // Điều này giữ lại thông tin về Level hiện tại
         if (timeSinceLastAttempt > TimeUnit.MINUTES.toMillis(RESET_SMALL_FAIL_COUNT_MINUTES)) {
-            Log.d(TAG, "✅ Tầng 1: Reset small-fail-count cho $key (30 phút không thử)")
+            SecureLogger.d("Tầng 1: Reset số lần thử về 0 (30 phút không thử, giữ nguyên Level)")
             
-            // Reset Level 1 (small-fail-count)
+            // Chỉ reset attempts và timestamp, KHÔNG reset lockout_until
+            // Điều này giữ lại thông tin về Level hiện tại (đã từng bị lockout Level 1 hay chưa)
             prefs.edit()
                 .remove(KEY_LEVEL1_ATTEMPTS + key)
                 .remove(KEY_LEVEL1_TIMESTAMP + key)
-                .remove(KEY_LEVEL1_LOCKOUT_UNTIL + key)
+                // KHÔNG xóa KEY_LEVEL1_LOCKOUT_UNTIL để giữ lại thông tin Level
                 .apply()
             
-            // Nếu không có lockout Level 2 hoặc Level 3 đang active, reset cả Level 2
+            // Reset Level 2 attempts và timestamp (nếu không đang bị lockout)
             val level2LockoutUntil = prefs.getLong(KEY_LEVEL2_LOCKOUT_UNTIL + key, 0)
             val level3LockoutUntil = prefs.getLong(KEY_LEVEL3_LOCKOUT_UNTIL + key, 0)
             
-            // Chỉ reset Level 2 nếu không có lockout đang active
+            // Chỉ reset Level 2 attempts nếu không có lockout đang active
             if ((level2LockoutUntil == 0L || currentTime >= level2LockoutUntil) &&
                 (level3LockoutUntil == 0L || currentTime >= level3LockoutUntil)) {
                 prefs.edit()
                     .remove(KEY_LEVEL2_ATTEMPTS + key)
                     .remove(KEY_LEVEL2_TIMESTAMP + key)
+                    // KHÔNG xóa KEY_LEVEL2_LOCKOUT_UNTIL để giữ lại thông tin Level
                     .apply()
             }
         }

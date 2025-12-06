@@ -7,7 +7,7 @@ import android.content.Intent
 import android.os.Build
 import com.tuhoc.phatnguoi.data.local.NotificationSettingsManager
 import com.tuhoc.phatnguoi.utils.PermissionHelper
-import android.util.Log
+import com.tuhoc.phatnguoi.security.SecureLogger
 import java.util.Calendar
 
 /**
@@ -28,7 +28,7 @@ class AutoCheckScheduler(private val context: Context) {
     fun scheduleNextAutoCheck() {
         // Kiểm tra permission trước
         if (!PermissionHelper.hasScheduleExactAlarmPermission(context)) {
-            Log.w("AutoCheckScheduler", "No SCHEDULE_EXACT_ALARM permission")
+            SecureLogger.w("No SCHEDULE_EXACT_ALARM permission")
             return
         }
         
@@ -36,7 +36,7 @@ class AutoCheckScheduler(private val context: Context) {
         val hour = settingsManager.getHour()
         val minute = settingsManager.getMinute()
         
-        Log.d("AutoCheckScheduler", "Scheduling: frequency=$frequency, time=$hour:$minute")
+        SecureLogger.d("Scheduling: frequency=$frequency, time=$hour:$minute")
         
         val calendar = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour)
@@ -100,7 +100,7 @@ class AutoCheckScheduler(private val context: Context) {
             )
         }
         
-        android.util.Log.d("AutoCheckScheduler", "Scheduled auto check for: ${calendar.time}")
+        SecureLogger.d("Scheduled auto check for: ${calendar.time}")
     }
     
     /**
@@ -119,7 +119,7 @@ class AutoCheckScheduler(private val context: Context) {
         )
         
         alarmManager.cancel(pendingIntent)
-        android.util.Log.d("AutoCheckScheduler", "Cancelled auto check")
+        SecureLogger.d("Cancelled auto check")
     }
 }
 

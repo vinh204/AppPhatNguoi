@@ -232,7 +232,7 @@ class FirebaseRepository {
         limit: Int = 50
     ): Result<List<Map<String, Any>>> {
         return try {
-            android.util.Log.d("FirebaseRepository", "🔍 Querying history for userId: $userId, limit: $limit")
+            android.util.Log.d("FirebaseRepository", "Querying history for userId: $userId, limit: $limit")
             
             // Thử query với orderBy trước (cần index)
             try {
@@ -243,27 +243,27 @@ class FirebaseRepository {
                     .get()
                     .await()
                 
-                android.util.Log.d("FirebaseRepository", "✅ Query thành công, tìm thấy ${snapshot.documents.size} documents")
+                android.util.Log.d("FirebaseRepository", "Query thành công, tìm thấy ${snapshot.documents.size} documents")
                 
                 val documents = snapshot.documents.mapNotNull { documentSnapshot ->
                     try {
                         val data = documentSnapshot.data?.toMutableMap() ?: mutableMapOf()
                         // Thêm document ID vào data để có thể update sau
                         data["_documentId"] = documentSnapshot.id
-                        android.util.Log.d("FirebaseRepository", "📄 Document ID: ${documentSnapshot.id}, data: $data")
+                        android.util.Log.d("FirebaseRepository", "Document ID: ${documentSnapshot.id}, data: $data")
                         data
                     } catch (e: Exception) {
-                        android.util.Log.e("FirebaseRepository", "❌ Lỗi khi đọc document: ${e.message}", e)
+                        android.util.Log.e("FirebaseRepository", "Lỗi khi đọc document: ${e.message}", e)
                         null
                     }
                 }
                 
-                android.util.Log.d("FirebaseRepository", "✅ Trả về ${documents.size} documents")
+                android.util.Log.d("FirebaseRepository", "Trả về ${documents.size} documents")
                 Result.success(documents)
             } catch (indexError: Exception) {
                 // Nếu lỗi do thiếu index, thử query đơn giản hơn (không orderBy)
                 if (indexError.message?.contains("index") == true || indexError.message?.contains("indexes") == true) {
-                    android.util.Log.w("FirebaseRepository", "⚠️ Index chưa sẵn sàng, dùng query đơn giản (không sort)")
+                    android.util.Log.w("FirebaseRepository", "Index chưa sẵn sàng, dùng query đơn giản (không sort)")
                     
                     val snapshot = db.collection("history")
                         .whereEqualTo("userId", userId)
@@ -286,14 +286,14 @@ class FirebaseRepository {
                         timestamp?.toDate()?.time ?: 0L
                     }.take(limit)
                     
-                    android.util.Log.d("FirebaseRepository", "✅ Query đơn giản thành công, trả về ${sorted.size} documents (đã sort trong memory)")
+                    android.util.Log.d("FirebaseRepository", "Query đơn giản thành công, trả về ${sorted.size} documents (đã sort trong memory)")
                     Result.success(sorted)
                 } else {
                     throw indexError
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("FirebaseRepository", "❌ Lỗi khi query history: ${e.message}", e)
+            android.util.Log.e("FirebaseRepository", "Lỗi khi query history: ${e.message}", e)
             Result.failure(e)
         }
     }
