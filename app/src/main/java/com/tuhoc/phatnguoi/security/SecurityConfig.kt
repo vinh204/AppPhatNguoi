@@ -43,7 +43,7 @@ object SecurityConfig {
         // Login rate limiting
         const val LOGIN_MAX_ATTEMPTS_LEVEL1 = 3
         const val LOGIN_TIME_WINDOW_MINUTES_LEVEL1 = 5L
-        const val LOGIN_LOCKOUT_SECONDS_LEVEL1 = 60L
+        const val LOGIN_LOCKOUT_SECONDS_LEVEL1 = 6L
         
         const val LOGIN_MAX_ATTEMPTS_LEVEL2 = 3
         const val LOGIN_TIME_WINDOW_MINUTES_LEVEL2 = 5L
@@ -60,6 +60,26 @@ object SecurityConfig {
         const val PASSWORD_RESET_MAX_ATTEMPTS = 5
         const val PASSWORD_RESET_TIME_WINDOW_MINUTES = 60L
         const val PASSWORD_RESET_LOCKOUT_MINUTES = 60L
+        
+        // OTP send rate limiting (multi-tier)
+        const val OTP_SEND_MAX_ATTEMPTS_10_MIN = 3
+        const val OTP_SEND_TIME_WINDOW_10_MIN = 10L
+        const val OTP_SEND_MAX_ATTEMPTS_1_HOUR = 5
+        const val OTP_SEND_TIME_WINDOW_1_HOUR = 60L
+        const val OTP_SEND_MAX_ATTEMPTS_24_HOURS = 10
+        const val OTP_SEND_TIME_WINDOW_24_HOURS = 24L
+        const val OTP_SEND_LOCKOUT_MINUTES = 30L
+        
+        // OTP verify rate limiting (sử dụng AdvancedRateLimiter, dùng config login)
+        // OTP verify sử dụng cùng config với login rate limiting
+        
+        // Tra cứu rate limiting (cho user chưa đăng nhập)
+        const val TRACUU_MAX_ATTEMPTS_24_HOURS = 3
+        const val TRACUU_TIME_WINDOW_24_HOURS = 24L
+        
+        // Advanced Rate Limiter reset configuration
+        const val RESET_SMALL_FAIL_COUNT_MINUTES = 30L // Reset số lần thử sau 30 phút không thử
+        const val RESET_ALL_HOURS = 24L // Reset toàn bộ sau 24 giờ không thử
     }
     
     // ============================================================
@@ -99,6 +119,15 @@ object SecurityConfig {
         const val ENABLE_COMMAND_INJECTION_CHECK = true
         const val ENABLE_PATH_TRAVERSAL_CHECK = true
         const val MAX_INPUT_LENGTH = 1000
+    }
+    
+    // ============================================================
+    // OTP CONFIGURATION
+    // ============================================================
+    object OTP {
+        const val LENGTH = 4 // Độ dài OTP (4 chữ số)
+        const val VALIDITY_MINUTES = 5L // Thời gian hết hạn OTP (5 phút)
+        const val RESEND_COUNTDOWN_SECONDS = 60L // Thời gian countdown trước khi có thể gửi lại OTP (60 giây)
     }
     
     // ============================================================

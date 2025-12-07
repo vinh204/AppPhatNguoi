@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.tuhoc.phatnguoi.data.local.AuthManager
 import com.tuhoc.phatnguoi.data.remote.OtpService
 import com.tuhoc.phatnguoi.security.PinStrengthChecker
+import com.tuhoc.phatnguoi.security.SecurityConfig
 import com.tuhoc.phatnguoi.ui.login.PinStrengthMessages
 import com.tuhoc.phatnguoi.ui.login.checkPinStrengthRealTime
 import com.tuhoc.phatnguoi.ui.login.validatePinOnSubmit
@@ -44,12 +45,12 @@ import com.tuhoc.phatnguoi.ui.theme.TextSub
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-// Constants
-private const val PIN_LENGTH = 6
-private const val OTP_LENGTH = 4
-private const val MIN_PHONE_LENGTH = 10
-private const val MAX_PHONE_LENGTH = 11
-private const val FOCUS_DELAY_MS = 100L
+// Constants - Sử dụng config từ SecurityConfig
+private val PIN_LENGTH = SecurityConfig.Password.PIN_LENGTH
+private val OTP_LENGTH = SecurityConfig.OTP.LENGTH
+private val MIN_PHONE_LENGTH = SecurityConfig.PhoneNumber.MIN_LENGTH
+private val MAX_PHONE_LENGTH = SecurityConfig.PhoneNumber.MAX_LENGTH
+private const val FOCUS_DELAY_MS = 100L // UI config, không liên quan security
 
 /**
  * Format message rate limit cho OTP verification
@@ -357,6 +358,7 @@ fun LoginScreen(
     var otpVerifyRateLimitMessage by remember { mutableStateOf<String?>(null) } // Message rate limit cho OTP verify
     var otpVerifyRateLimitCountdown by remember { mutableStateOf(0) } // Countdown cho rate limit OTP verify
     var remainingVerifyAttempts by remember { mutableStateOf(3) } // Số lần thử còn lại cho verify OTP
+    var remainingLoginAttempts by remember { mutableStateOf<Int?>(null) } // Số lần thử còn lại cho login
     var pinStrengthWarning by remember { mutableStateOf<String?>(null) } // Cảnh báo PIN yếu
     var pinStrengthError by remember { mutableStateOf<String?>(null) } // Lỗi PIN không hợp lệ
     
@@ -390,9 +392,13 @@ fun LoginScreen(
                 } else {
                     rateLimitMessage = null
                     rateLimitCountdown = 0
+                    // Cập nhật lại số lần thử còn lại khi hết countdown
+                    remainingLoginAttempts = authManager.getRemainingAttempts(phoneNumber)
                 }
             } else {
                 rateLimitMessage = null
+                // Cập nhật lại số lần thử còn lại khi hết countdown
+                remainingLoginAttempts = authManager.getRemainingAttempts(phoneNumber)
             }
         }
     }
@@ -476,9 +482,12 @@ fun LoginScreen(
                     if (!rateLimitInfo.canProceed) {
                         rateLimitMessage = rateLimitInfo.message
                         rateLimitCountdown = rateLimitInfo.remainingSeconds
+                        remainingLoginAttempts = null
                     } else {
                         rateLimitMessage = null
                         rateLimitCountdown = 0
+                        // Cập nhật số lần thử còn lại
+                        remainingLoginAttempts = authManager.getRemainingAttempts(phoneNumber)
                     }
                 }
             }
@@ -723,7 +732,7 @@ fun LoginScreen(
                                             when (result) {
                                                 is com.tuhoc.phatnguoi.data.remote.OTPResult.Success -> {
                                                     isOtpSent = true
-                                                    countdown = 60 // Đếm ngược 60 giây
+                                                    countdown = SecurityConfig.OTP.RESEND_COUNTDOWN_SECONDS.toInt()
                                                     clearError()
                                                     otpRateLimitMessage = null
                                                     otpRateLimitCountdown = 0
@@ -972,7 +981,7 @@ fun LoginScreen(
                                                         when (result) {
                                                             is com.tuhoc.phatnguoi.data.remote.OTPResult.Success -> {
                                                                 isOtpSent = true
-                                                                countdown = 60 // Đếm ngược 60 giây
+                                                                countdown = SecurityConfig.OTP.RESEND_COUNTDOWN_SECONDS.toInt()
                                                                 step = 2
                                                                 isLoading = false
                                                                 otpRateLimitMessage = null
@@ -1073,6 +1082,9 @@ fun LoginScreen(
                                                             errorMessage = null
                                                         } else {
                                                             // Kiểm tra số lần thử còn lại
+                                                            // Cập nhật số lần thử còn lại từ kết quả
+                                                            remainingLoginAttempts = result.remainingAttempts
+                                                            
                                                             if (result.remainingAttempts > 0) {
                                                                 // Còn lần thử → hiển thị số lần thử còn lại
                                                                 errorMessage = "Mật khẩu không đúng. Còn ${result.remainingAttempts} lần thử"
@@ -1086,9 +1098,11 @@ fun LoginScreen(
                                                                     rateLimitMessage = rateLimitInfo.message
                                                                     rateLimitCountdown = rateLimitInfo.remainingSeconds
                                                                     errorMessage = null
+                                                                    remainingLoginAttempts = null
                                                                 } else {
                                                                     errorMessage = "Mật khẩu không đúng"
                                                                     rateLimitMessage = null
+                                                                    remainingLoginAttempts = 0
                                                                 }
                                                             }
                                                         }

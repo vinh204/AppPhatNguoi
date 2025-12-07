@@ -8,6 +8,7 @@ import com.tuhoc.phatnguoi.security.EncryptedPreferencesHelper
 import com.tuhoc.phatnguoi.security.OTPRateLimiter
 import com.tuhoc.phatnguoi.security.OTPRateLimitResult
 import com.tuhoc.phatnguoi.security.RateLimitResult
+import com.tuhoc.phatnguoi.security.SecurityConfig
 import kotlinx.coroutines.delay
 import java.security.SecureRandom
 
@@ -30,8 +31,9 @@ class OtpService(private val context: Context) {
     companion object {
         private const val KEY_OTP = "otp_"
         private const val KEY_OTP_EXPIRY = "otp_expiry_"
-        private const val OTP_VALIDITY_MINUTES = 5L
-        private const val OTP_LENGTH = 4
+        // Sử dụng config từ SecurityConfig
+        private const val OTP_VALIDITY_MINUTES = SecurityConfig.OTP.VALIDITY_MINUTES
+        private const val OTP_LENGTH = SecurityConfig.OTP.LENGTH
     }
     
     /**

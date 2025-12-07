@@ -19,8 +19,9 @@ class TraCuuRateLimiter(private val context: Context) {
     )
     
     companion object {
-        private const val MAX_ATTEMPTS_24_HOURS = 3
-        private const val TIME_WINDOW_24_HOURS = 24L
+        // Sử dụng config từ SecurityConfig
+        private const val MAX_ATTEMPTS_24_HOURS = SecurityConfig.RateLimit.TRACUU_MAX_ATTEMPTS_24_HOURS
+        private const val TIME_WINDOW_24_HOURS = SecurityConfig.RateLimit.TRACUU_TIME_WINDOW_24_HOURS
         private const val KEY_ATTEMPTS_24_HOURS = "attempts_24hours_"
         private const val KEY_TIMESTAMP_24_HOURS = "timestamp_24hours_"
     }

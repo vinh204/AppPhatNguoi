@@ -1,9 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Cho phép cả HTTPS và HTTP (cleartext) tới phatnguoixe.com -->
-    <!-- Một số server có thể redirect từ HTTPS sang HTTP hoặc yêu cầu HTTP -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">phatnguoixe.com</domain>
-    </domain-config>
+    <!-- 
+        Cấu hình này cho phép user certificates (cần thiết cho Burp Suite testing).
+        CHỈ DÙNG CHO DEBUG/TESTING - KHÔNG ĐƯA VÀO PRODUCTION!
+        
+        Trên Android 9.0+ (API 28+), ứng dụng mặc định chỉ tin tưởng system certificates.
+        Để intercept HTTPS traffic với Burp Suite (bao gồm Firestore), cần cho phép user-installed certificates.
+        
+        LƯU Ý: Google Play Services (Firestore SDK) có thể bỏ qua Network Security Config.
+        Nếu vẫn gặp lỗi, cần cài đặt Burp certificate vào system (cần root) hoặc bypass SSL pinning.
+    -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Tin tưởng system certificates -->
+            <certificates src="system" />
+            <!-- Tin tưởng user-installed certificates (Burp Suite CA) -->
+            <!-- QUAN TRỌNG: Phải có cả user để Firestore SDK tin tưởng Burp certificate -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    
+    <!-- Debug overrides bổ sung (nếu cần) -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
 </network-security-config>
-

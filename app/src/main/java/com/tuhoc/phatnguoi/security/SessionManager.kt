@@ -28,12 +28,10 @@ class SessionManager(private val context: Context) {
         private const val KEY_PHONE_NUMBER = "session_phone_number"
         private const val KEY_REFRESH_TOKEN = "refresh_token"
         
-        // Session expires sau 7 ngày
-        private const val SESSION_DURATION_DAYS = 7L
-        // Refresh token expires sau 30 ngày
-        private const val REFRESH_TOKEN_DURATION_DAYS = 30L
-        // Session sẽ được refresh tự động nếu còn < 1 ngày
-        private const val AUTO_REFRESH_THRESHOLD_DAYS = 1L
+        // Sử dụng config từ SecurityConfig
+        private const val SESSION_DURATION_DAYS = SecurityConfig.Session.DURATION_DAYS
+        private const val REFRESH_TOKEN_DURATION_DAYS = SecurityConfig.Session.REFRESH_TOKEN_DURATION_DAYS
+        private const val AUTO_REFRESH_THRESHOLD_DAYS = SecurityConfig.Session.AUTO_REFRESH_THRESHOLD_DAYS
     }
     
     /**

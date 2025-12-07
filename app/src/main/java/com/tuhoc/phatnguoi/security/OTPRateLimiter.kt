@@ -17,13 +17,14 @@ class OTPRateLimiter(private val context: Context) {
     )
     
     companion object {
-        private const val MAX_ATTEMPTS_10_MIN = 3
-        private const val MAX_ATTEMPTS_1_HOUR = 5
-        private const val MAX_ATTEMPTS_24_HOURS = 10
-        private const val TIME_WINDOW_10_MIN = 10L
-        private const val TIME_WINDOW_1_HOUR = 60L
-        private const val TIME_WINDOW_24_HOURS = 24L
-        private const val LOCKOUT_MINUTES = 30L
+        // Sử dụng config từ SecurityConfig
+        private const val MAX_ATTEMPTS_10_MIN = SecurityConfig.RateLimit.OTP_SEND_MAX_ATTEMPTS_10_MIN
+        private const val MAX_ATTEMPTS_1_HOUR = SecurityConfig.RateLimit.OTP_SEND_MAX_ATTEMPTS_1_HOUR
+        private const val MAX_ATTEMPTS_24_HOURS = SecurityConfig.RateLimit.OTP_SEND_MAX_ATTEMPTS_24_HOURS
+        private const val TIME_WINDOW_10_MIN = SecurityConfig.RateLimit.OTP_SEND_TIME_WINDOW_10_MIN
+        private const val TIME_WINDOW_1_HOUR = SecurityConfig.RateLimit.OTP_SEND_TIME_WINDOW_1_HOUR
+        private const val TIME_WINDOW_24_HOURS = SecurityConfig.RateLimit.OTP_SEND_TIME_WINDOW_24_HOURS
+        private const val LOCKOUT_MINUTES = SecurityConfig.RateLimit.OTP_SEND_LOCKOUT_MINUTES
         private const val KEY_LAST_OTP_TIME = "last_otp_time_"
         private const val KEY_ATTEMPTS_10_MIN = "attempts_10min_"
         private const val KEY_TIMESTAMP_10_MIN = "timestamp_10min_"

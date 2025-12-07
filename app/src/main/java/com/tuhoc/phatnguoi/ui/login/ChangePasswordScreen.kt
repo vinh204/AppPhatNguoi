@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tuhoc.phatnguoi.data.local.AuthManager
 import com.tuhoc.phatnguoi.security.PinStrengthChecker
+import com.tuhoc.phatnguoi.security.SecurityConfig
 import com.tuhoc.phatnguoi.ui.login.PinStrengthMessages
 import com.tuhoc.phatnguoi.ui.login.checkPinStrengthRealTime
 import com.tuhoc.phatnguoi.ui.login.validatePinOnSubmit
@@ -41,8 +42,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 // Constants
-private const val PIN_LENGTH = 6
-private const val FOCUS_DELAY_MS = 100L
+// Constants - Sử dụng config từ SecurityConfig
+private val PIN_LENGTH = SecurityConfig.Password.PIN_LENGTH
+private const val FOCUS_DELAY_MS = 100L // UI config, không liên quan security
 
 // Validation sử dụng InputValidator trực tiếp cho toàn bộ hệ thống
 

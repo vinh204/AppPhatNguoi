@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.tuhoc.phatnguoi.data.local.AuthManager
 import com.tuhoc.phatnguoi.data.remote.OtpService
 import com.tuhoc.phatnguoi.security.PinStrengthChecker
+import com.tuhoc.phatnguoi.security.SecurityConfig
 import com.tuhoc.phatnguoi.ui.login.PinStrengthMessages
 import com.tuhoc.phatnguoi.ui.login.checkPinStrengthRealTime
 import com.tuhoc.phatnguoi.ui.login.validatePinOnSubmit
@@ -42,12 +43,12 @@ import com.tuhoc.phatnguoi.ui.theme.TextSub
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-// Constants
-private const val PIN_LENGTH = 6
-private const val OTP_LENGTH = 4
-private const val MIN_PHONE_LENGTH = 10
-private const val MAX_PHONE_LENGTH = 11
-private const val FOCUS_DELAY_MS = 100L
+// Constants - Sử dụng config từ SecurityConfig
+private val PIN_LENGTH = SecurityConfig.Password.PIN_LENGTH
+private val OTP_LENGTH = SecurityConfig.OTP.LENGTH
+private val MIN_PHONE_LENGTH = SecurityConfig.PhoneNumber.MIN_LENGTH
+private val MAX_PHONE_LENGTH = SecurityConfig.PhoneNumber.MAX_LENGTH
+private const val FOCUS_DELAY_MS = 100L // UI config, không liên quan security
 
 // Validation sử dụng InputValidator trực tiếp cho toàn bộ hệ thống
 
@@ -93,7 +94,7 @@ fun ForgotPasswordScreen(
                 when (result) {
                     is com.tuhoc.phatnguoi.data.remote.OTPResult.Success -> {
                         isOtpSent = true
-                        countdown = 60
+                        countdown = SecurityConfig.OTP.RESEND_COUNTDOWN_SECONDS.toInt()
                         otpRateLimitMessage = null
                         otpRateLimitCountdown = 0
                     }
@@ -339,7 +340,7 @@ fun ForgotPasswordScreen(
                                             when (result) {
                                                 is com.tuhoc.phatnguoi.data.remote.OTPResult.Success -> {
                                                     isOtpSent = true
-                                                    countdown = 60
+                                                    countdown = SecurityConfig.OTP.RESEND_COUNTDOWN_SECONDS.toInt()
                                                     clearError()
                                                     otpRateLimitMessage = null
                                                     otpRateLimitCountdown = 0

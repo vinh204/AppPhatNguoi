@@ -8,9 +8,11 @@ import java.util.concurrent.TimeUnit
 /**
  * Advanced Rate Limiter với nhiều cấp độ lockout
  * 
- * Cấp 1: 3 lần sai trong 5 phút → khóa 60 giây
- * Cấp 2: Sau khi hết 60s, nếu sai tiếp 3 lần trong 5 phút → khóa 5 phút
+ * Cấp 1: 3 lần sai trong 5 phút → khóa theo SecurityConfig.RateLimit.LOGIN_LOCKOUT_SECONDS_LEVEL1
+ * Cấp 2: Sau khi hết Level 1, nếu sai tiếp 3 lần trong 5 phút → khóa 5 phút
  * Cấp 3: Nếu vẫn sai → khóa 60 phút
+ * 
+ * Tất cả các giá trị được lấy từ SecurityConfig.RateLimit
  * 
  * Reset 2 tầng:
  * ✅ Tầng 1: 30 phút không thử → reset số lần thử về 0 (giữ nguyên Level hiện tại)
@@ -29,22 +31,22 @@ class AdvancedRateLimiter(private val context: Context) {
     )
     
     companion object {
-        // Cấp 1: 3 lần sai trong 5 phút → khóa 60 giây
-        private const val LEVEL1_MAX_ATTEMPTS = 3
-        private const val LEVEL1_TIME_WINDOW_MINUTES = 5L
-        private const val LEVEL1_LOCKOUT_SECONDS = 60L
+        // Cấp 1: Sử dụng config từ SecurityConfig
+        private const val LEVEL1_MAX_ATTEMPTS = SecurityConfig.RateLimit.LOGIN_MAX_ATTEMPTS_LEVEL1
+        private const val LEVEL1_TIME_WINDOW_MINUTES = SecurityConfig.RateLimit.LOGIN_TIME_WINDOW_MINUTES_LEVEL1
+        private const val LEVEL1_LOCKOUT_SECONDS = SecurityConfig.RateLimit.LOGIN_LOCKOUT_SECONDS_LEVEL1
         
-        // Cấp 2: 3 lần sai tiếp trong 5 phút → khóa 5 phút
-        private const val LEVEL2_MAX_ATTEMPTS = 3
-        private const val LEVEL2_TIME_WINDOW_MINUTES = 5L
-        private const val LEVEL2_LOCKOUT_MINUTES = 5L
+        // Cấp 2: Sử dụng config từ SecurityConfig
+        private const val LEVEL2_MAX_ATTEMPTS = SecurityConfig.RateLimit.LOGIN_MAX_ATTEMPTS_LEVEL2
+        private const val LEVEL2_TIME_WINDOW_MINUTES = SecurityConfig.RateLimit.LOGIN_TIME_WINDOW_MINUTES_LEVEL2
+        private const val LEVEL2_LOCKOUT_MINUTES = SecurityConfig.RateLimit.LOGIN_LOCKOUT_MINUTES_LEVEL2
         
-        // Cấp 3: Khóa 60 phút
-        private const val LEVEL3_LOCKOUT_MINUTES = 60L
+        // Cấp 3: Sử dụng config từ SecurityConfig
+        private const val LEVEL3_LOCKOUT_MINUTES = SecurityConfig.RateLimit.LOGIN_LOCKOUT_MINUTES_LEVEL3
         
-        // Reset
-        private const val RESET_SMALL_FAIL_COUNT_MINUTES = 30L
-        private const val RESET_ALL_HOURS = 24L
+        // Reset: Sử dụng config từ SecurityConfig
+        private const val RESET_SMALL_FAIL_COUNT_MINUTES = SecurityConfig.RateLimit.RESET_SMALL_FAIL_COUNT_MINUTES
+        private const val RESET_ALL_HOURS = SecurityConfig.RateLimit.RESET_ALL_HOURS
         
         // Keys
         private const val KEY_LEVEL1_ATTEMPTS = "level1_attempts_"
@@ -374,28 +376,7 @@ class AdvancedRateLimiter(private val context: Context) {
             return 0
         }
         
-        // Kiểm tra Level 1
-        if (level1LockoutUntil == 0L || currentTime >= level1LockoutUntil) {
-            val attemptsKey = KEY_LEVEL1_ATTEMPTS + key
-            val timestampKey = KEY_LEVEL1_TIMESTAMP + key
-            val attempts = prefs.getInt(attemptsKey, 0)
-            val firstAttemptTime = prefs.getLong(timestampKey, 0)
-            
-            // Nếu chưa có attempts hoặc đã hết window → còn đủ 3 lần
-            if (attempts == 0 || firstAttemptTime == 0L) {
-                return LEVEL1_MAX_ATTEMPTS
-            }
-            
-            // Kiểm tra xem có trong window không
-            if (currentTime - firstAttemptTime <= TimeUnit.MINUTES.toMillis(LEVEL1_TIME_WINDOW_MINUTES)) {
-                return LEVEL1_MAX_ATTEMPTS - attempts
-            } else {
-                // Đã hết window → reset
-                return LEVEL1_MAX_ATTEMPTS
-            }
-        }
-        
-        // Kiểm tra Level 2
+        // Kiểm tra Level 2 trước (nếu đã hết lockout Level 1, người dùng đã ở Level 2)
         if (level1LockoutUntil > 0 && currentTime >= level1LockoutUntil) {
             val level2AttemptsKey = KEY_LEVEL2_ATTEMPTS + key
             val level2TimestampKey = KEY_LEVEL2_TIMESTAMP + key
@@ -416,7 +397,24 @@ class AdvancedRateLimiter(private val context: Context) {
             }
         }
         
-        return LEVEL1_MAX_ATTEMPTS
+        // Kiểm tra Level 1 (chỉ khi chưa có lockout Level 1 hoặc chưa từng bị lockout Level 1)
+        val attemptsKey = KEY_LEVEL1_ATTEMPTS + key
+        val timestampKey = KEY_LEVEL1_TIMESTAMP + key
+        val attempts = prefs.getInt(attemptsKey, 0)
+        val firstAttemptTime = prefs.getLong(timestampKey, 0)
+        
+        // Nếu chưa có attempts hoặc đã hết window → còn đủ 3 lần
+        if (attempts == 0 || firstAttemptTime == 0L) {
+            return LEVEL1_MAX_ATTEMPTS
+        }
+        
+        // Kiểm tra xem có trong window không
+        if (currentTime - firstAttemptTime <= TimeUnit.MINUTES.toMillis(LEVEL1_TIME_WINDOW_MINUTES)) {
+            return LEVEL1_MAX_ATTEMPTS - attempts
+        } else {
+            // Đã hết window → reset
+            return LEVEL1_MAX_ATTEMPTS
+        }
     }
 }
 
